@@ -1,0 +1,24 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "1.0",
+	"FriendlyName": "Steamworks",
+	"Description": "Steamworks implementation for C++ and blueprints",
+	"Category": "Other",
+	"CreatedBy": "davevillz",
+	"CreatedByURL": "https://github.com/davevill",
+	"DocsURL": "",
+	"MarketplaceURL": "",
+	"SupportURL": "",
+	"EnabledByDefault": false,
+	"CanContainContent": false,
+	"IsBetaVersion": true,
+	"Installed": false,
+	"Modules": [
+		{
+			"Name": "Steamworks",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		}
+	]
+}
