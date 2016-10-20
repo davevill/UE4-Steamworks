@@ -3,13 +3,30 @@
 #pragma once
 
 #include "ModuleManager.h"
+#include "steam/steam_api.h"
+#include "steam/steam_gameserver.h"
+
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable:4996)
+#endif
 
 class FSteamworksModule : public IModuleInterface
 {
+private:
+
+
+	class FOnlineFactorySteam* SteamFactory;
+
+
 public:
+
 
 	virtual void StartupModule() override;
 	virtual void ShutdownModule() override;
+
+
+
 };
 
 DECLARE_LOG_CATEGORY_EXTERN(SteamworksLog, Log, All);

@@ -2,15 +2,63 @@
 
 #include "SteamworksPrivatePCH.h"
 #include "SteamworksGameInstance.h"
-//#include "ISteamGameServer.h"
 #include "Runtime/Networking/Public/Networking.h"
 #include "Http.h"
+#include "UniqueNetIdSteam.h"
+#include "SteamworksGameMode.h"
 
 
 
 
 
+class FSteamworksCallbacks
+{
 
+public:
+
+	STEAM_GAMESERVER_CALLBACK(FSteamworksCallbacks, OnValidateTicket, ValidateAuthTicketResponse_t, OnValidateTicketCallback);
+
+
+
+	TWeakObjectPtr<USteamworksGameInstance> GameInstance;
+
+	FSteamworksCallbacks(USteamworksGameInstance* Owner) :
+		GameInstance(Owner),
+		OnValidateTicketCallback(this, &FSteamworksCallbacks::OnValidateTicket)
+	{
+
+	}
+
+
+	
+
+
+};
+
+void FSteamworksCallbacks::OnValidateTicket(ValidateAuthTicketResponse_t* pResponse)
+{
+	if (pResponse->m_eAuthSessionResponse == k_EAuthSessionResponseOK)
+	{
+
+		FUniqueNetIdSteam SteamId(pResponse->m_SteamID);
+
+
+		ASteamworksGameMode* GameMode = GameInstance->GetWorld()->GetAuthGameMode<ASteamworksGameMode>();
+
+		if (GameMode)
+		{
+			GameMode->GetGameSessionClass();
+		}
+
+		int32 i = 0;
+		i++;
+		//Set a pending kick request, so when user fully logins will get kicked, if already in should happend instantly
+
+		//TODO ban the user if this happends
+
+		return;
+	}
+}
 
 USteamworksGameInstance::USteamworksGameInstance()
 {
@@ -25,6 +73,12 @@ uint32 ticketSize;
 void USteamworksGameInstance::Init()
 {
 	Super::Init();
+
+
+
+	Callbacks = new FSteamworksCallbacks(this);
+
+
 
 	FHttpModule* HTTP = &FHttpModule::Get();
 
@@ -63,33 +117,15 @@ void USteamworksGameInstance::Init()
 		else
 		{
 			UE_LOG(SteamworksLog, Warning, TEXT("SteamAPI_Init() failed, make sure to run this with steam or if in development add the steam_appid.txt in the binary folder"));
-		}
+		}	
 
-
-
-		
-		
-
-		GetWorld()->GetTimerManager().SetTimer(PollHandle, this, &USteamworksGameInstance::Poll, 1.f, true);	
+		GetWorld()->GetTimerManager().SetTimer(PollHandle, this, &USteamworksGameInstance::Poll, 0.5f, true);	
 	}
 }
 
 ULocalPlayer* USteamworksGameInstance::CreateInitialPlayer(FString& OutError)
 {
 	ULocalPlayer* LocalPlayer = Super::CreateInitialPlayer(OutError);
-
-	if (SteamUser() && LocalPlayer)
-	{
-		HAuthTicket Ticket = SteamUser()->GetAuthSessionTicket(ticketBuffer, STEAM_TICKET_BUFFER_SIZE, &ticketSize);
-
-		TSharedPtr<FUniqueNetId> SteamNetId = MakeShareable(new FUniqueNetIdSteam(SteamUser()->GetSteamID()));
-
-		LocalPlayer->SetCachedUniqueNetId(SteamNetId);
-
-		ensure(SteamNetId->IsValid());
-	
-		UE_LOG(SteamworksLog, Log, TEXT("Created Initial player with UniqueNetId: %s"), *SteamNetId->ToString());
-	}
 
 	return LocalPlayer;
 }
@@ -130,12 +166,16 @@ void USteamworksGameInstance::OnPublicAddressResolved(FString IpString)
 			// Coming soon: Logging into authenticated, persistent game server account
 			SteamGameServer()->LogOnAnonymous();
 
+
 			// We want to actively update the master server with our presence so players can
 			// find us via the steam matchmaking/server browser interfaces
 			SteamGameServer()->EnableHeartbeats(true);
 
 
 			UE_LOG(SteamworksLog, Log, TEXT("SteamGameServer LogOnAnonymous"));
+
+
+
 		}
 			
 	}
@@ -152,12 +192,15 @@ void USteamworksGameInstance::Shutdown()
 		SteamGameServer_Shutdown();
 	}*/
 
+	delete Callbacks;
+	Callbacks = nullptr;
+
 	Super::Shutdown();
 }
 
 void USteamworksGameInstance::Poll()
 {
-	//UE_LOG(SteamworksLog, Log, TEXT("Poll"));
+	SteamAPI_RunCallbacks();
 }
 
 

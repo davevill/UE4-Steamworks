@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Engine/GameInstance.h"
+#include "Steamworks.h"
 #include "SteamworksGameInstance.generated.h"
 
 
@@ -14,6 +15,8 @@ class STEAMWORKS_API USteamworksGameInstance : public UGameInstance
 
 	FTimerHandle PollHandle;
 
+
+	class FSteamworksCallbacks* Callbacks;
 
 protected:
 
