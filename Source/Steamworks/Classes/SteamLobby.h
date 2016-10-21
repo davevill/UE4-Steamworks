@@ -50,7 +50,7 @@ public:
 
 
 
-UCLASS()
+UCLASS(Blueprintable)
 class STEAMWORKS_API ASteamLobby : public AInfo
 {
 	GENERATED_BODY()
@@ -58,6 +58,7 @@ class STEAMWORKS_API ASteamLobby : public AInfo
 
 protected:
 
+public:
 	UPROPERTY(BlueprintReadOnly, Category="Steam Lobby")
 	FSteamLobbyInfo Info;
 

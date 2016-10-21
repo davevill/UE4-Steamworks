@@ -2,9 +2,13 @@
 
 #include "SteamworksPrivatePCH.h"
 #include "SteamMatchmaking.h"
+#include "SteamworksGameInstance.h"
 #include "SteamworksGameSession.h"
 #include "Runtime/Core/Public/Misc/Base64.h"
 #include "UniqueNetIdSteam.h"
+#include "SteamLobby.h"
+
+
 
 
 class FSteamMatchmakingImpl
@@ -17,6 +21,30 @@ public:
 
 
 	STEAM_CALLBACK(FSteamMatchmakingImpl, OnLobbyDataUpdatedCallback, LobbyDataUpdate_t, CallbackLobbyDataUpdated);
+
+	CCallResult<FSteamMatchmakingImpl, LobbyCreated_t> SteamCallLobbyCreated;
+
+	void OnLobbyCreatedCallback(LobbyCreated_t* pLobbyCreated, bool bIOFailure)
+	{
+		check(Matchmaking.IsValid());
+
+		if (pLobbyCreated->m_eResult == EResult::k_EResultOK)
+		{
+			USteamworksGameInstance* GameInstance = Cast<USteamworksGameInstance>(Matchmaking->GetWorld()->GetGameInstance());
+
+			ensure(GameInstance);
+			if (GameInstance)
+			{
+				GameInstance->SetLobbyId(pLobbyCreated->m_ulSteamIDLobby);
+
+				ASteamLobby* Lobby = Matchmaking->RestoreLobby();
+
+				Matchmaking->OnLobbyCreated.Broadcast(Lobby);
+				Matchmaking->LobbyCreated(Lobby);
+
+			}
+		}
+	}
 
 	CCallResult<FSteamMatchmakingImpl, LobbyMatchList_t> SteamCallResultLobbyMatchList;
 
@@ -40,6 +68,7 @@ public:
 
 		Matchmaking->bRequestingLobbyList = false;
 		Matchmaking->OnLobbyListUpdated.Broadcast(Matchmaking.Get());
+		Matchmaking->LobbyListUpdated();
 	}
 
 	FSteamMatchmakingImpl(ASteamMatchmaking* Owner) :
@@ -75,6 +104,7 @@ void FSteamMatchmakingImpl::OnLobbyDataUpdatedCallback(LobbyDataUpdate_t* pCallb
 		if (bUpdated)
 		{
 			Matchmaking->OnLobbyListUpdated.Broadcast(Matchmaking.Get());
+			Matchmaking->LobbyListUpdated();
 		}
 	}
 }
@@ -86,6 +116,8 @@ ASteamMatchmaking::ASteamMatchmaking()
 
 	bRequestingLobbyList = false;
 	Impl = nullptr;
+
+	LobbyClass = ASteamLobby::StaticClass();
 }
 
 void ASteamMatchmaking::BeginPlay()
@@ -108,7 +140,7 @@ void ASteamMatchmaking::BeginDestroy()
 	}
 }
 
-#define STEAMWORKS_CHECK_MATCHMAKING() if (SteamMatchmaking()) { UE_LOG(SteamworksLog, Error, TEXT("SteamMatchmaking is null")); ensure(false); return; }
+#define STEAMWORKS_CHECK_MATCHMAKING() if (!SteamMatchmaking()) { UE_LOG(SteamworksLog, Error, TEXT("SteamMatchmaking is null")); ensure(false); return; }
 
 void ASteamMatchmaking::RequestLobbyList()
 {
@@ -180,9 +212,45 @@ void ASteamMatchmaking::AddRequestLobbyListFilterSlotsAvailable(int32 SlotsAvail
 }
 
 void ASteamMatchmaking::AddRequestLobbyListDistanceFilter(ESteamLobbyDistanceFilter DistanceFilter)
+{
 	STEAMWORKS_CHECK_MATCHMAKING();
-	SteamMatchmaking()->AddRequestLobbyListDistanceFilter(DistanceFilter);
+	SteamMatchmaking()->AddRequestLobbyListDistanceFilter(GetSteamSDKEnum(DistanceFilter));
 }
 
+void ASteamMatchmaking::CreateLobby()
+{
+	STEAMWORKS_CHECK_MATCHMAKING();
+
+	SteamAPICall_t hSteamAPICall = SteamMatchmaking()->CreateLobby(ELobbyType::k_ELobbyTypePublic, 8);
+
+	check(Impl);
+	Impl->SteamCallLobbyCreated.Set(hSteamAPICall, Impl, &FSteamMatchmakingImpl::OnLobbyCreatedCallback);
+}
+
+class ASteamLobby* ASteamMatchmaking::RestoreLobby()
+{
+	ASteamLobby* Lobby = Cast<ASteamLobby>(UGameplayStatics::BeginSpawningActorFromClass(this, LobbyClass, FTransform::Identity, true, nullptr));
+
+	if (Lobby)
+	{
+		USteamworksGameInstance* GameInstance = Cast<USteamworksGameInstance>(GetWorld()->GetGameInstance());
+
+		ensure(GameInstance);
+		if (GameInstance)
+		{
+			Lobby->Info.Id = GameInstance->GetLobbyId();
+			Lobby->Info.UpdateData(true);
+		}
+
+		UGameplayStatics::FinishSpawningActor(Lobby, FTransform::Identity);
+	}
+
+	return Lobby;
+}
+
+
+
+
+	
 
 

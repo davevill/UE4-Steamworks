@@ -9,12 +9,13 @@
 #include "SteamMatchmaking.generated.h"
 
 
+class ASteamLobby;
 
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FSteamOnLobbyListUpdatedSignature, class ASteamMatchmaking*, Matchmaking);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FSteamOnLobbyCreatedSignature, class ASteamLobby*, Lobby);
 
 
-class ASteamLobby;
 
 
 UENUM(BlueprintType)
@@ -38,7 +39,12 @@ enum class ESteamLobbyDistanceFilter : uint8
 };
 
 
-UCLASS()
+
+/** This actor is meant to be subclassed as a blueprint and hookup UI in a MVC way
+  * this allows custom matchmaking logic without limitations.
+  * 
+  * The lobby actor works in the sameway */
+UCLASS(Blueprintable)
 class STEAMWORKS_API ASteamMatchmaking : public AInfo
 {
 	GENERATED_BODY()
@@ -58,6 +64,10 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category="Steam Matchmaking")
 	TArray<FSteamLobbyInfo> LobbyList;
 
+	/** Create Lobby will spawn a lobby of this class */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Steam Matchmaking")
+	TSubclassOf<class ASteamLobby> LobbyClass;
+
 
 
 	ASteamMatchmaking();
@@ -66,6 +76,20 @@ public:
 
 	virtual void BeginPlay() override;
 	virtual void BeginDestroy() override;
+
+
+
+
+	/** Creates a new lobby, only one lobby actor can be spaned at all times 
+	  * Once created it OnLobbyCreated gets broadcasted with the Lobby reference */
+	UFUNCTION(BlueprintCallable, Category="Steam Matchmaking")
+	void CreateLobby();
+
+	/** Re-spawns the lobby actor and restores it's state if we're in a lobby
+	  * this might be usefull if the level changes and you want to recreate the lobby 
+	  * without creating a new one */
+	UFUNCTION(BlueprintCallable, Category="Steam Matchmaking")
+	class ASteamLobby* RestoreLobby();
 
 
 
@@ -102,12 +126,25 @@ public:
 
 
 
+	UFUNCTION(BlueprintImplementableEvent, Category="Steam Matchmaking")
+	void LobbyListUpdated();
+
+	UFUNCTION(BlueprintImplementableEvent, Category="Steam Matchmaking")
+	void LobbyCreated(class ASteamLobby* Lobby);
+
+
 
 
 	/** Broadcast if the list is requested or/and if its data changed
 	 *  This is a good place to update any UI */
 	UPROPERTY(BlueprintAssignable, Category="Steam Matchmaking")
 	FSteamOnLobbyListUpdatedSignature OnLobbyListUpdated;
+
+	UPROPERTY(BlueprintAssignable, Category="Steam Matchmaking")
+	FSteamOnLobbyCreatedSignature OnLobbyCreated;
+
+
+
 
 
 };

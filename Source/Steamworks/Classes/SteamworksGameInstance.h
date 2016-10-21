@@ -24,6 +24,9 @@ protected:
 	UFUNCTION()
 	virtual void Poll();
 
+	/* Current lobby id */
+	CSteamID LobbyId;
+
 public:
 
 	USteamworksGameInstance();
@@ -33,6 +36,10 @@ public:
 
 	/** Called when the public address is resolved */
 	virtual void OnPublicAddressResolved(FString IpString);
+
+
+	inline CSteamID GetLobbyId() { return LobbyId; }
+	inline void SetLobbyId(CSteamID Id) { LobbyId = Id; }
 
 
 	virtual ULocalPlayer* CreateInitialPlayer(FString& OutError) override;
