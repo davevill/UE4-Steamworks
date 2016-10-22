@@ -11,24 +11,24 @@ FString USteamworksLocalPlayer::GetGameLoginOptions() const
 {
 	FString TicketOption = "ticket=";
 	
-	uint32 Size;
+	uint32 ByteSize;
 
 	TArray<uint8> Buffer;
 	Buffer.SetNumZeroed(1024);
 
 	if (SteamUser())
 	{
-		HAuthTicket Ticket = SteamUser()->GetAuthSessionTicket(Buffer.GetData(), Buffer.Num(), &Size);
+		HAuthTicket Ticket = SteamUser()->GetAuthSessionTicket(Buffer.GetData(), Buffer.Num(), &ByteSize);
 
 
 		if (Ticket)
 		{
-			check(Size < (uint32)Buffer.Num());
-			check(Size > 0);
+			check(ByteSize < (uint32)Buffer.Num());
+			check(ByteSize > 0);
 
-			Buffer.RemoveAt(Size, Buffer.Num() - Size);
+			Buffer.RemoveAt(ByteSize, Buffer.Num() - ByteSize);
 
-			check(Buffer.Num() == Size);
+			check(Buffer.Num() == ByteSize);
 
 			TicketOption += FBase64::Encode(Buffer);
 		}

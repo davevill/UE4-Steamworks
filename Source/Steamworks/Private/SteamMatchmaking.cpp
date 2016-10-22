@@ -2,7 +2,7 @@
 
 #include "SteamworksPrivatePCH.h"
 #include "SteamMatchmaking.h"
-#include "SteamworksGameInstance.h"
+#include "SteamworksManager.h"
 #include "SteamworksGameSession.h"
 #include "Runtime/Core/Public/Misc/Base64.h"
 #include "UniqueNetIdSteam.h"
@@ -30,12 +30,12 @@ public:
 
 		if (pLobbyCreated->m_eResult == EResult::k_EResultOK)
 		{
-			USteamworksGameInstance* GameInstance = Cast<USteamworksGameInstance>(Matchmaking->GetWorld()->GetGameInstance());
+			USteamworksManager* Manager = USteamworksManager::Get(Matchmaking.Get());
 
-			ensure(GameInstance);
-			if (GameInstance)
+			ensure(Manager);
+			if (Manager)
 			{
-				GameInstance->SetLobbyId(pLobbyCreated->m_ulSteamIDLobby);
+				Manager->SetLobbyId(pLobbyCreated->m_ulSteamIDLobby);
 
 				ASteamLobby* Lobby = Matchmaking->RestoreLobby();
 
@@ -233,12 +233,12 @@ class ASteamLobby* ASteamMatchmaking::RestoreLobby()
 
 	if (Lobby)
 	{
-		USteamworksGameInstance* GameInstance = Cast<USteamworksGameInstance>(GetWorld()->GetGameInstance());
+		USteamworksManager* Manager = USteamworksManager::Get(this);
 
-		ensure(GameInstance);
-		if (GameInstance)
+		ensure(Manager);
+		if (Manager)
 		{
-			Lobby->Info.Id = GameInstance->GetLobbyId();
+			Lobby->Info.Id = Manager->GetLobbyId();
 			Lobby->Info.UpdateData(true);
 		}
 
