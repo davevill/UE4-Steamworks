@@ -9,6 +9,14 @@
 
 
 
+
+
+
+
+
+
+
+
 UCLASS()
 class STEAMWORKS_API USteamworksManager : public UObject, public FTickableGameObject
 {

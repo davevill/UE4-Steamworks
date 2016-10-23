@@ -140,6 +140,7 @@ void USteamworksManager::Init()
 
 
 				UE_LOG(SteamworksLog, Log, TEXT("SteamGameServer LogOnAnonymous"));
+				bInitialized = true;
 			}	
 		}
 		else
@@ -147,6 +148,7 @@ void USteamworksManager::Init()
 			if (SteamAPI_Init())
 			{
 				UE_LOG(SteamworksLog, Log, TEXT("SteamAPI_Init() succeeded"));
+				bInitialized = true;
 			}
 			else
 			{
@@ -154,27 +156,22 @@ void USteamworksManager::Init()
 			}	
 		}
 
-		bInitialized = true;
 	}
-
-	ensure(bInitialized == true);
 }
 
 void USteamworksManager::Shutdown()
 {
-	ensure(bInitialized == true);
 	if (bInitialized)
 	{
 
 		SteamAPI_Shutdown();
 		SteamGameServer_Shutdown();
+	}
 
-		if (Callbacks)
-		{
-			delete Callbacks;
-			Callbacks = nullptr;
-		}
-
+	if (Callbacks)
+	{
+		delete Callbacks;
+		Callbacks = nullptr;
 	}
 }
 

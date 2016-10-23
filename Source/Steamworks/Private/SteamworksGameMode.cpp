@@ -28,6 +28,9 @@ void ASteamworksGameMode::BeginDestroy()
 
 void ASteamworksGameMode::PreLogin(const FString& Options, const FString& Address, const FUniqueNetIdRepl& UniqueId, FString& ErrorMessage)
 {
+	//This isn't working, let's bypass it for now
+	Super::PreLogin(Options, Address, UniqueId, ErrorMessage);
+	return;
 	FString Ticket = ParseOption(Options, "ticket");
 
 

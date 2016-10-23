@@ -3,13 +3,15 @@
 #pragma once
 
 #include "ModuleManager.h"
-#include "steam/steam_api.h"
-#include "steam/steam_gameserver.h"
+
 
 #ifdef _MSC_VER
 #pragma warning(push)
 #pragma warning(disable:4996)
 #endif
+
+#include "steam/steam_api.h"
+#include "steam/steam_gameserver.h"
 
 class FSteamworksModule : public IModuleInterface
 {

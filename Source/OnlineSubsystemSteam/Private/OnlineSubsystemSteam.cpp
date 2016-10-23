@@ -103,4 +103,4 @@ void FOnlineSubsystemSteamModule::ShutdownModule()
 
 #undef LOCTEXT_NAMESPACE
 	
-IMPLEMENT_MODULE(FOnlineSubsystemSteamModule, Steamworks)
+IMPLEMENT_MODULE(FOnlineSubsystemSteamModule, OnlineSubsystemSteam)

@@ -12,7 +12,7 @@
 
 
 
-bool FUserOnlineAccountNull::GetAuthAttribute(const FString& AttrName, FString& OutAttrValue) const
+bool FUserOnlineAccountSteam::GetAuthAttribute(const FString& AttrName, FString& OutAttrValue) const
 {
 	const FString* FoundAttr = AdditionalAuthData.Find(AttrName);
 	if (FoundAttr != NULL)
@@ -23,7 +23,7 @@ bool FUserOnlineAccountNull::GetAuthAttribute(const FString& AttrName, FString& 
 	return false;
 }
 
-bool FUserOnlineAccountNull::GetUserAttribute(const FString& AttrName, FString& OutAttrValue) const
+bool FUserOnlineAccountSteam::GetUserAttribute(const FString& AttrName, FString& OutAttrValue) const
 {
 	const FString* FoundAttr = UserAttributes.Find(AttrName);
 	if (FoundAttr != NULL)
@@ -34,7 +34,7 @@ bool FUserOnlineAccountNull::GetUserAttribute(const FString& AttrName, FString& 
 	return false;
 }
 
-bool FUserOnlineAccountNull::SetUserAttribute(const FString& AttrName, const FString& AttrValue)
+bool FUserOnlineAccountSteam::SetUserAttribute(const FString& AttrName, const FString& AttrValue)
 {
 	const FString* FoundAttr = UserAttributes.Find(AttrName);
 	if (FoundAttr == NULL || *FoundAttr != AttrValue)
@@ -45,12 +45,12 @@ bool FUserOnlineAccountNull::SetUserAttribute(const FString& AttrName, const FSt
 	return false;
 }
 
-FString FUserOnlineAccountNull::GetRealName() const
+FString FUserOnlineAccountSteam::GetRealName() const
 {
 	return GetDisplayName();
 }
 
-FString FUserOnlineAccountNull::GetDisplayName(const FString& Platform) const
+FString FUserOnlineAccountSteam::GetDisplayName(const FString& Platform) const
 {
 	if (SteamFriends())
 	{
@@ -86,7 +86,7 @@ inline FString GenerateRandomUserId(int32 LocalUserNum)
 bool FOnlineIdentitySteam::Login(int32 LocalUserNum, const FOnlineAccountCredentials& AccountCredentials)
 {
 	FString ErrorStr;
-	TSharedPtr<FUserOnlineAccountNull> UserAccountPtr;
+	TSharedPtr<FUserOnlineAccountSteam> UserAccountPtr;
 
 	// valid local player index
 	if (LocalUserNum < 0 || LocalUserNum >= MAX_LOCAL_PLAYERS)
@@ -110,7 +110,7 @@ bool FOnlineIdentitySteam::Login(int32 LocalUserNum, const FOnlineAccountCredent
 				NewUserId = FUniqueNetIdSteam(SteamUser()->GetSteamID());
 			}
 
-			UserAccountPtr = MakeShareable(new FUserOnlineAccountNull(NewUserId.ToString()));
+			UserAccountPtr = MakeShareable(new FUserOnlineAccountSteam(NewUserId.ToString()));
 			UserAccountPtr->UserAttributes.Add(TEXT("id"), NewUserId.ToString());
 
 			// update/add cached entry for user
@@ -122,7 +122,7 @@ bool FOnlineIdentitySteam::Login(int32 LocalUserNum, const FOnlineAccountCredent
 		else
 		{
 			const FUniqueNetIdSteam* UniqueIdStr = (FUniqueNetIdSteam*)(UserId->Get());
-			TSharedRef<FUserOnlineAccountNull>* TempPtr = UserAccounts.Find(*UniqueIdStr);
+			TSharedRef<FUserOnlineAccountSteam>* TempPtr = UserAccounts.Find(*UniqueIdStr);
 			check(TempPtr);
 			UserAccountPtr = *TempPtr;
 		}
@@ -202,7 +202,7 @@ TSharedPtr<FUserOnlineAccount> FOnlineIdentitySteam::GetUserAccount(const FUniqu
 	TSharedPtr<FUserOnlineAccount> Result;
 
 	FUniqueNetIdSteam SteamUserId(UserId);
-	const TSharedRef<FUserOnlineAccountNull>* FoundUserAccount = UserAccounts.Find(SteamUserId);
+	const TSharedRef<FUserOnlineAccountSteam>* FoundUserAccount = UserAccounts.Find(SteamUserId);
 	if (FoundUserAccount != NULL)
 	{
 		Result = *FoundUserAccount;
@@ -215,7 +215,7 @@ TArray<TSharedPtr<FUserOnlineAccount> > FOnlineIdentitySteam::GetAllUserAccounts
 {
 	TArray<TSharedPtr<FUserOnlineAccount> > Result;
 
-	for (TMap<FUniqueNetIdSteam, TSharedRef<FUserOnlineAccountNull>>::TConstIterator It(UserAccounts); It; ++It)
+	for (TMap<FUniqueNetIdSteam, TSharedRef<FUserOnlineAccountSteam>>::TConstIterator It(UserAccounts); It; ++It)
 	{
 		Result.Add(It.Value());
 	}
@@ -344,3 +344,4 @@ FString FOnlineIdentitySteam::GetAuthType() const
 {
 	return TEXT("");
 }
+

@@ -8,7 +8,7 @@
 
 
 
-class FUserOnlineAccountNull : public FUserOnlineAccount
+class FUserOnlineAccountSteam : public FUserOnlineAccount
 {
 
 public:
@@ -26,13 +26,13 @@ public:
 	virtual FString GetAccessToken() const override { return TEXT("DummyAuthTicket"); }
 	virtual bool GetAuthAttribute(const FString& AttrName, FString& OutAttrValue) const override;
 
-	// FUserOnlineAccountNull
+	// FUserOnlineAccountSteam
 
-	FUserOnlineAccountNull(const FString& InUserId = TEXT(""))
+	FUserOnlineAccountSteam(const FString& InUserId = TEXT(""))
 		: UserIdPtr(new FUniqueNetIdSteam(InUserId))
 	{ }
 
-	virtual ~FUserOnlineAccountNull()
+	virtual ~FUserOnlineAccountSteam()
 	{
 	}
 
@@ -97,7 +97,7 @@ private:
 	TMap<int32, TSharedPtr<const FUniqueNetId>> UserIds;
 
 	/** Ids mapped to locally registered users */
-	TMap<FUniqueNetIdSteam, TSharedRef<FUserOnlineAccountNull>> UserAccounts;
+	TMap<FUniqueNetIdSteam, TSharedRef<FUserOnlineAccountSteam>> UserAccounts;
 };
 
 typedef TSharedPtr<FOnlineIdentitySteam, ESPMode::ThreadSafe> FOnlineIdentitySteamPtr;
