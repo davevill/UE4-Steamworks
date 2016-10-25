@@ -54,4 +54,26 @@ void USteamworksStatics::FindLobbies(UObject* WorldContextObject)
 	Test->SteamCallResultLobbyMatchList.Set(hSteamAPICall, Test, &FTestCallback::OnLobbyMatchListCallback);
 }
 
+FString USteamworksStatics::GetLocalSteamId(UObject* WorldContextObject)
+{
+	APlayerController* PlayerController = UGameplayStatics::GetPlayerController(WorldContextObject, 0);
+
+	if (PlayerController)
+	{
+		ULocalPlayer* LocalPlayer = PlayerController->GetLocalPlayer(); 
+
+		if (LocalPlayer)
+		{
+
+			check(LocalPlayer->GetPreferredUniqueNetId().IsValid());
+
+			return LocalPlayer->GetPreferredUniqueNetId()->ToString();
+		}
+	}
+
+	ensure(false);
+
+	return FString();
+}
+
 

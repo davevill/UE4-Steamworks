@@ -17,13 +17,5 @@ public:
 	virtual void StartupModule() override;
 	virtual void ShutdownModule() override;
 
-	virtual bool SupportsDynamicReloading() override
-	{
-		return false;
-	}
 
-	virtual bool SupportsAutomaticShutdown() override
-	{
-		return false;
-	}
 };

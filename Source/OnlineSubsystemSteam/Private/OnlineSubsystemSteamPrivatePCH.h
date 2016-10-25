@@ -5,12 +5,11 @@
 #include "Engine.h"
 #include "Net/UnrealNetwork.h"
 #include "OnlineSubsystemSteam.h"
-#include "steam/steam_api.h"
-#include "steam/steam_gameserver.h"
 #include "OnlineSubsystemTypes.h"
 #include "IPAddress.h"
 #include "OnlineSubsystem.h"
 #include "ModuleManager.h"
+#include "Steamworks.h"
 
 #define INVALID_INDEX -1
 

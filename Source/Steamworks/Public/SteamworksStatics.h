@@ -24,4 +24,9 @@ public:
 	UFUNCTION(Category = "Steamworks", BlueprintCallable, meta = (WorldContext = "WorldContextObject", UnsafeDuringActorConstruction = "true"))
 	static void FindLobbies(UObject* WorldContextObject);
 
+
+
+
+	UFUNCTION(Category = "Steamworks", BlueprintPure, meta = (WorldContext = "WorldContextObject", UnsafeDuringActorConstruction = "true"))
+	static FString GetLocalSteamId(UObject* WorldContextObject);
 };
