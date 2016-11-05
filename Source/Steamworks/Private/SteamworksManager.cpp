@@ -111,7 +111,7 @@ void USteamworksManager::Init()
 				UE_LOG(SteamworksLog, Log, TEXT("SteamGameServer_Init() failed"));
 			}
 
-			if (SteamGameServer())
+			/*if (SteamGameServer())
 			{
 				// Set the "game dir".
 				// This is currently required for all games.  However, soon we will be
@@ -141,7 +141,7 @@ void USteamworksManager::Init()
 
 				UE_LOG(SteamworksLog, Log, TEXT("SteamGameServer LogOnAnonymous"));
 				bInitialized = true;
-			}	
+			}*/	
 		}
 		else
 		{
