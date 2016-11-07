@@ -13,8 +13,9 @@
 
 
 
+
 /** Represents a voice in the game, if part of a local-controlled pawn it can send voice to the server, 
-  * otherwise will playback other player voice */
+  * otherwise will playback other player's voice */
 UCLASS(ClassGroup=(Steamworks), meta=(BlueprintSpawnableComponent), Config=Game)
 class STEAMWORKS_API USteamVoiceComponent : public UAudioComponent
 {
@@ -53,7 +54,6 @@ public:
 	void ShutUp();
 
 
-
 	/** Send compressed voice data to the server*/
 	UFUNCTION(Server, Reliable, WithValidation)
 	void ServerOnVoice(const TArray<uint8>& VoiceData);
@@ -61,5 +61,9 @@ public:
 	/** Receive compressed voice data from the server */
 	UFUNCTION(NetMulticast, Unreliable)
 	void MulticastOnVoice(const TArray<uint8>& VoiceData);
+
+
+	UFUNCTION(BlueprintPure, Category="Steam Voice Component")
+	bool IsTalking() const { return true; }
 
 };

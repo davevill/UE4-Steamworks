@@ -22,10 +22,8 @@ void USteamVoiceComponent::InitializeComponent()
 {
 	Super::InitializeComponent();
 
-	if (SteamUser() == nullptr) return;
-
 	SoundStreaming = NewObject<USoundWaveProcedural>();
-	SoundStreaming->SampleRate = SteamUser()->GetVoiceOptimalSampleRate();
+	SoundStreaming->SampleRate = SteamUser() == nullptr ? 11025 : SteamUser()->GetVoiceOptimalSampleRate();
 	SoundStreaming->NumChannels = 1;
 	SoundStreaming->Duration = INDEFINITELY_LOOPING_DURATION;
 	SoundStreaming->SoundGroup = SOUNDGROUP_Voice;
@@ -48,7 +46,7 @@ void USteamVoiceComponent::TickComponent(float DeltaTime, ELevelTick TickType, F
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
 
-	if (bRecordingVoice)
+	if (bRecordingVoice && SteamUser())
 	{
 		VoiceBuffer.Empty(STEAMWORKS_TICK_VOICE_BUFFER_SIZE);
 		VoiceBuffer.Reserve(STEAMWORKS_TICK_VOICE_BUFFER_SIZE);
@@ -74,13 +72,21 @@ void USteamVoiceComponent::TickComponent(float DeltaTime, ELevelTick TickType, F
 void USteamVoiceComponent::Talk()
 {
 	bRecordingVoice = true;
-	SteamUser()->StartVoiceRecording();
+
+	if (SteamUser())
+	{
+		SteamUser()->StartVoiceRecording();
+	}
 }
 
 void USteamVoiceComponent::ShutUp()
 {
 	bRecordingVoice = false;
-	SteamUser()->StopVoiceRecording();
+
+	if (SteamUser())
+	{
+		SteamUser()->StopVoiceRecording();
+	}
 }
 
 bool USteamVoiceComponent::ServerOnVoice_Validate(const TArray<uint8>& VoiceData)
@@ -96,6 +102,15 @@ void USteamVoiceComponent::ServerOnVoice_Implementation(const TArray<uint8>& Voi
 
 void USteamVoiceComponent::MulticastOnVoice_Implementation(const TArray<uint8>& VoiceData)
 {
+	if (SteamUser() == nullptr) return;
+
+	APawn* Pawn = Cast<APawn>(GetOwner());
+
+	if (Pawn && Pawn->IsLocallyControlled())
+	{
+		return;
+	}
+
 	uint8 Buffer[28672];
 	uint32 WrittenSize = 0;
 

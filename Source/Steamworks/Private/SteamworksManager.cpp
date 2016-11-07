@@ -9,6 +9,11 @@
 
 
 
+#define STEAMWORKS_AVATAR_SIZE 184
+#define STEAMWORKS_AVATAR_BYTE_SIZE STEAMWORKS_AVATAR_SIZE * STEAMWORKS_AVATAR_SIZE * 4
+
+
+
 
 
 class FSteamworksCallbacks
@@ -18,13 +23,16 @@ public:
 
 	STEAM_GAMESERVER_CALLBACK(FSteamworksCallbacks, OnValidateTicket, ValidateAuthTicketResponse_t, OnValidateTicketCallback);
 
-
+	STEAM_CALLBACK(FSteamworksCallbacks, OnAvatarImageLoaded, AvatarImageLoaded_t, OnAvatarImageLoadedCallback);
+	STEAM_CALLBACK(FSteamworksCallbacks, OnPersonaStateChange, PersonaStateChange_t, OnPersonaStateChangeCallback);
 
 	TWeakObjectPtr<USteamworksManager> Manager;
 
 	FSteamworksCallbacks(USteamworksManager* Owner) :
 		Manager(Owner),
-		OnValidateTicketCallback(this, &FSteamworksCallbacks::OnValidateTicket)
+		OnValidateTicketCallback(this, &FSteamworksCallbacks::OnValidateTicket),
+		OnAvatarImageLoadedCallback(this, &FSteamworksCallbacks::OnAvatarImageLoaded),
+		OnPersonaStateChangeCallback(this, &FSteamworksCallbacks::OnPersonaStateChange)
 	{
 
 	}
@@ -34,6 +42,22 @@ public:
 
 
 };
+
+void FSteamworksCallbacks::OnPersonaStateChange(PersonaStateChange_t* pData)
+{
+	UTexture2D* AvatarTexture = Manager->GetAvatarBySteamId(pData->m_ulSteamID);
+}
+
+void FSteamworksCallbacks::OnAvatarImageLoaded(AvatarImageLoaded_t* pData)
+{
+	UTexture2D* AvatarTexture = Manager->Avatars.FindRef(pData->m_steamID.ConvertToUint64());
+	ensure(AvatarTexture);
+
+	if (AvatarTexture)
+	{
+		Manager->CopySteamAvatar(pData->m_iImage, AvatarTexture);
+	}
+}
 
 void FSteamworksCallbacks::OnValidateTicket(ValidateAuthTicketResponse_t* pResponse)
 {
@@ -70,8 +94,6 @@ USteamworksManager::USteamworksManager(const FObjectInitializer& ObjectInitializ
 
 void USteamworksManager::Init()
 {
-	Callbacks = new FSteamworksCallbacks(this);
-
 	GameInstance = Cast<UGameInstance>(GetOuter());
 
 	/*FHttpModule* HTTP = &FHttpModule::Get();
@@ -157,21 +179,24 @@ void USteamworksManager::Init()
 		}
 
 	}
+
+
+	Callbacks = new FSteamworksCallbacks(this);
 }
 
 void USteamworksManager::Shutdown()
 {
+	if (Callbacks)
+	{
+		delete Callbacks;
+		Callbacks = nullptr;
+	}
+
 	if (bInitialized)
 	{
 
 		SteamAPI_Shutdown();
 		SteamGameServer_Shutdown();
-	}
-
-	if (Callbacks)
-	{
-		delete Callbacks;
-		Callbacks = nullptr;
 	}
 }
 
@@ -208,5 +233,109 @@ USteamworksManager* USteamworksManager::Get(UObject* WorldContextObject)
 	}
 
 	return nullptr;
+}
+
+void USteamworksManager::CopySteamAvatar(int Handle, UTexture2D* AvatarTexture) const
+{
+	check(Handle > 0);
+	check(AvatarTexture != nullptr);
+
+	TArray<uint8> Buffer;
+	Buffer.SetNumZeroed(STEAMWORKS_AVATAR_BYTE_SIZE);
+
+	//copy it directly within this call
+	if (SteamUtils()->GetImageRGBA(Handle, Buffer.GetData(), Buffer.Num()))
+	{
+		void* MipData = AvatarTexture->PlatformData->Mips[0].BulkData.Lock(LOCK_READ_WRITE);
+		FMemory::Memcpy(MipData, Buffer.GetData(), Buffer.Num());
+		AvatarTexture->PlatformData->Mips[0].BulkData.Unlock();
+
+		AvatarTexture->PlatformData->NumSlices = 1;
+		AvatarTexture->NeverStream = true;
+
+		AvatarTexture->UpdateResource();
+	}
+	else
+	{
+		ensure(false && "this shouldn't happend");
+	}
+}
+
+UTexture2D* USteamworksManager::GetAvatar(class APlayerState* PlayerState, UTexture2D* FailoverTexture)
+{
+	if (PlayerState == nullptr || !SteamFriends() || !SteamUtils()) return FailoverTexture;
+
+
+	if (PlayerState->UniqueId.GetUniqueNetId().IsValid())
+	{
+		const FUniqueNetIdSteam* SteamNetId = (const FUniqueNetIdSteam*)PlayerState->UniqueId.GetUniqueNetId().Get();
+
+		CSteamID SteamId(SteamNetId->UniqueNetId);
+
+		UTexture2D* AvatarTexture=  GetAvatarBySteamId(SteamId);
+
+		if (AvatarTexture)
+		{
+			return AvatarTexture;
+		}
+		else
+		{
+			return FailoverTexture;
+		}
+	}
+
+	return FailoverTexture;
+}
+
+UTexture2D* USteamworksManager::GetAvatarBySteamId(CSteamID SteamId)
+{
+
+	if (!SteamId.IsValid())
+	{
+		return nullptr;
+	}
+
+
+	//Try to get it from the cache
+	UTexture2D* AvatarTexture = Avatars.FindRef(SteamId.ConvertToUint64());
+
+	if (AvatarTexture)
+	{
+		//we found it no need to do anything else
+		return AvatarTexture;
+	}
+
+	//Create the texture
+	AvatarTexture = UTexture2D::CreateTransient(STEAMWORKS_AVATAR_SIZE, STEAMWORKS_AVATAR_SIZE, PF_R8G8B8A8);
+
+	int Handle = SteamFriends()->GetLargeFriendAvatar(SteamId);
+
+	//check if Avatar is inmediatly available
+	if (Handle > 0)
+	{
+		CopySteamAvatar(Handle, AvatarTexture);
+	}
+	else
+	{
+		uint8* MipData = (uint8*)AvatarTexture->PlatformData->Mips[0].BulkData.Lock(LOCK_READ_WRITE);
+		FMemory::Memset(MipData, 0, STEAMWORKS_AVATAR_BYTE_SIZE);
+		AvatarTexture->PlatformData->Mips[0].BulkData.Unlock();
+
+		AvatarTexture->PlatformData->NumSlices = 1;
+		AvatarTexture->NeverStream = true;
+
+		AvatarTexture->UpdateResource();
+
+		if (Handle == 0)
+		{
+			SteamFriends()->RequestUserInformation(SteamId, false);
+		}
+
+		//steam will call us back once the avatar is ready to be read
+	}
+
+	Avatars.Add(SteamId.ConvertToUint64(), AvatarTexture);
+
+	return AvatarTexture;
 }
 
