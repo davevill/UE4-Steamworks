@@ -165,21 +165,9 @@ void USteamworksManager::Init()
 				bInitialized = true;
 			}*/	
 		}
-		else
-		{
-			if (SteamAPI_Init())
-			{
-				UE_LOG(SteamworksLog, Log, TEXT("SteamAPI_Init() succeeded"));
-				bInitialized = true;
-			}
-			else
-			{
-				UE_LOG(SteamworksLog, Warning, TEXT("SteamAPI_Init() failed, make sure to run this with steam or if in development add the steam_appid.txt in the binary folder"));
-			}	
-		}
 
+		bInitialized = true;
 	}
-
 
 	Callbacks = new FSteamworksCallbacks(this);
 }
@@ -194,8 +182,6 @@ void USteamworksManager::Shutdown()
 
 	if (bInitialized)
 	{
-
-		SteamAPI_Shutdown();
 		SteamGameServer_Shutdown();
 	}
 }

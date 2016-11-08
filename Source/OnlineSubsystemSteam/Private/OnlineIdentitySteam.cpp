@@ -93,10 +93,6 @@ bool FOnlineIdentitySteam::Login(int32 LocalUserNum, const FOnlineAccountCredent
 	{
 		ErrorStr = FString::Printf(TEXT("Invalid LocalUserNum=%d"), LocalUserNum);
 	}
-	else if (AccountCredentials.Id.IsEmpty())
-	{
-		ErrorStr = TEXT("Invalid account id, string empty");
-	}
 	else
 	{
 		TSharedPtr<const FUniqueNetId>* UserId = UserIds.Find(LocalUserNum);
@@ -107,7 +103,11 @@ bool FOnlineIdentitySteam::Login(int32 LocalUserNum, const FOnlineAccountCredent
 
 			if (SteamUser())
 			{
-				NewUserId = FUniqueNetIdSteam(SteamUser()->GetSteamID());
+				CSteamID SteamId = SteamUser()->GetSteamID();
+
+				ensure(SteamId.IsValid());
+
+				NewUserId = FUniqueNetIdSteam(SteamId.ConvertToUint64());
 			}
 
 			UserAccountPtr = MakeShareable(new FUserOnlineAccountSteam(NewUserId.ToString()));
@@ -171,6 +171,8 @@ bool FOnlineIdentitySteam::AutoLogin(int32 LocalUserNum)
 	FParse::Value(FCommandLine::Get(), TEXT("AUTH_LOGIN="), LoginStr);
 	FParse::Value(FCommandLine::Get(), TEXT("AUTH_PASSWORD="), PasswordStr);
 	FParse::Value(FCommandLine::Get(), TEXT("AUTH_TYPE="), TypeStr);
+
+	return Login(0, FOnlineAccountCredentials(TypeStr, LoginStr, PasswordStr));
 
 	if (!LoginStr.IsEmpty())
 	{

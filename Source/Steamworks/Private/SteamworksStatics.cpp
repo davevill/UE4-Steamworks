@@ -56,22 +56,10 @@ void USteamworksStatics::FindLobbies(UObject* WorldContextObject)
 
 FString USteamworksStatics::GetLocalSteamId(UObject* WorldContextObject)
 {
-	APlayerController* PlayerController = UGameplayStatics::GetPlayerController(WorldContextObject, 0);
-
-	if (PlayerController)
+	if (SteamUser())
 	{
-		ULocalPlayer* LocalPlayer = PlayerController->GetLocalPlayer(); 
-
-		if (LocalPlayer)
-		{
-
-			check(LocalPlayer->GetPreferredUniqueNetId().IsValid());
-
-			return LocalPlayer->GetPreferredUniqueNetId()->ToString();
-		}
+		return FString::Printf(TEXT("%llu"), SteamUser()->GetSteamID().ConvertToUint64());
 	}
-
-	ensure(false);
 
 	return FString();
 }
