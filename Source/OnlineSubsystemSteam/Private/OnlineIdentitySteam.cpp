@@ -101,6 +101,8 @@ bool FOnlineIdentitySteam::Login(int32 LocalUserNum, const FOnlineAccountCredent
 		{
 			FUniqueNetIdSteam NewUserId;
 
+			if (SteamUser() == nullptr) SteamAPI_Init();
+
 			if (SteamUser())
 			{
 				CSteamID SteamId = SteamUser()->GetSteamID();

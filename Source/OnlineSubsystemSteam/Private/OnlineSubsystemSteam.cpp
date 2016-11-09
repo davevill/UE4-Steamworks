@@ -28,15 +28,6 @@ public:
 
 	virtual bool Init() override
 	{
-		if (SteamAPI_Init())
-		{
-			UE_LOG(SteamworksLog, Log, TEXT("SteamAPI_Init() succeeded"));
-		}
-		else
-		{
-			UE_LOG(SteamworksLog, Warning, TEXT("SteamAPI_Init() failed, make sure to run this with steam or if in development add the steam_appid.txt in the binary folder"));
-		}
-
 		if (FOnlineSubsystemNull::Init())
 		{
 			IdentityInterfaceSteam = MakeShareable(new FOnlineIdentitySteam(this));
@@ -53,8 +44,6 @@ public:
 			ensure(IdentityInterfaceSteam.IsUnique());
 			IdentityInterfaceSteam = nullptr;
 		}
-
-		SteamAPI_Shutdown();
 
 		return FOnlineSubsystemNull::Shutdown();
 	}

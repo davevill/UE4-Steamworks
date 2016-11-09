@@ -13,6 +13,9 @@
 
 
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FSteamOnInventoryUpdateSignature);
+
+
 
 
 
@@ -42,7 +45,15 @@ protected:
 	void CopySteamAvatar(int Handle, UTexture2D* AvatarTexture) const;
 
 
+
+
 public:
+
+
+	/** This is always the latest inventory after calling GetAllItems */
+	UPROPERTY(BlueprintReadOnly, Category="Steamworks")
+	TArray<class USteamItem*> Inventory;
+
 
 
 	virtual void Tick(float DeltaTime) override;
@@ -79,5 +90,19 @@ public:
 
 	/** Gets Avatar directly from a SteamID, return nullptr if SteamId is invalid */
 	UTexture2D* GetAvatarBySteamId(CSteamID SteamId);
+
+
+
+
+	UFUNCTION(BlueprintCallable, Category="Steamworks")
+	void GetAllInventoryItems();
+
+
+	UFUNCTION(BlueprintPure, Category="Steamworks")
+	bool HasInstanceOf(int32 DefinitionId) const;
+
+
+	UPROPERTY(BlueprintAssignable, Category="Steamworks")
+	FSteamOnInventoryUpdateSignature OnInventoryUpdate;
 
 };

@@ -29,4 +29,7 @@ public:
 
 	UFUNCTION(Category = "Steamworks", BlueprintPure, meta = (WorldContext = "WorldContextObject", UnsafeDuringActorConstruction = "true"))
 	static FString GetLocalSteamId(UObject* WorldContextObject);
+
+
+
 };

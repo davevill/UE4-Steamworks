@@ -6,6 +6,9 @@
 #include "Http.h"
 #include "UniqueNetIdSteam.h"
 #include "SteamworksGameMode.h"
+#include "LatentActions.h"
+
+#include "SteamItem.h"
 
 
 
@@ -25,6 +28,8 @@ public:
 
 	STEAM_CALLBACK(FSteamworksCallbacks, OnAvatarImageLoaded, AvatarImageLoaded_t, OnAvatarImageLoadedCallback);
 	STEAM_CALLBACK(FSteamworksCallbacks, OnPersonaStateChange, PersonaStateChange_t, OnPersonaStateChangeCallback);
+	STEAM_CALLBACK(FSteamworksCallbacks, OnInventoryUpdate, SteamInventoryFullUpdate_t, OnInventoryUpdateCallback);
+	STEAM_CALLBACK(FSteamworksCallbacks, OnInventoryDefinitionUpdate, SteamInventoryDefinitionUpdate_t, OnInventoryDefinitionUpdateCallback);
 
 	TWeakObjectPtr<USteamworksManager> Manager;
 
@@ -32,7 +37,9 @@ public:
 		Manager(Owner),
 		OnValidateTicketCallback(this, &FSteamworksCallbacks::OnValidateTicket),
 		OnAvatarImageLoadedCallback(this, &FSteamworksCallbacks::OnAvatarImageLoaded),
-		OnPersonaStateChangeCallback(this, &FSteamworksCallbacks::OnPersonaStateChange)
+		OnPersonaStateChangeCallback(this, &FSteamworksCallbacks::OnPersonaStateChange),
+		OnInventoryUpdateCallback(this, &FSteamworksCallbacks::OnInventoryUpdate),
+		OnInventoryDefinitionUpdateCallback(this, &FSteamworksCallbacks::OnInventoryDefinitionUpdate)
 	{
 
 	}
@@ -43,6 +50,40 @@ public:
 
 };
 
+void FSteamworksCallbacks::OnInventoryDefinitionUpdate(SteamInventoryDefinitionUpdate_t* pData)
+{
+
+}
+
+void FSteamworksCallbacks::OnInventoryUpdate(SteamInventoryFullUpdate_t* pData)
+{
+	TArray<SteamItemDetails_t> ItemDetails;
+
+	uint32 Count = 0;
+
+	Manager->Inventory.Empty();
+
+	if (SteamInventory()->GetResultItems(pData->m_handle, nullptr, &Count))
+	{
+		ItemDetails.SetNumZeroed(Count);
+
+		if (SteamInventory()->GetResultItems(pData->m_handle, ItemDetails.GetData(), &Count))
+		{
+			for (uint32 i = 0; i < Count; i++)
+			{
+				USteamItem* Item = NewObject<USteamItem>(Manager.Get());
+				check(Item);
+
+				Item->Details = ItemDetails[i];
+
+				Manager->Inventory.Add(Item);
+			}
+		}
+	}
+
+	Manager->OnInventoryUpdate.Broadcast();
+}
+
 void FSteamworksCallbacks::OnPersonaStateChange(PersonaStateChange_t* pData)
 {
 	UTexture2D* AvatarTexture = Manager->GetAvatarBySteamId(pData->m_ulSteamID);
@@ -50,7 +91,7 @@ void FSteamworksCallbacks::OnPersonaStateChange(PersonaStateChange_t* pData)
 
 void FSteamworksCallbacks::OnAvatarImageLoaded(AvatarImageLoaded_t* pData)
 {
-	UTexture2D* AvatarTexture = Manager->Avatars.FindRef(pData->m_steamID.ConvertToUint64());
+	UTexture2D* AvatarTexture = Manager->GetAvatarBySteamId(pData->m_steamID.ConvertToUint64());
 	ensure(AvatarTexture);
 
 	if (AvatarTexture)
@@ -166,10 +207,47 @@ void USteamworksManager::Init()
 			}*/	
 		}
 
+		if (SteamAPI_Init())
+		{
+			UE_LOG_ONLINE(Log, TEXT("SteamAPI_Init() succeeded"));
+		}
+		else
+		{
+			UE_LOG_ONLINE(Warning, TEXT("SteamAPI_Init() failed, make sure to run this with steam or if in development add the steam_appid.txt in the binary folder"));
+		}
+
 		bInitialized = true;
 	}
 
 	Callbacks = new FSteamworksCallbacks(this);
+
+	if (SteamInventory())
+	{
+		//load the definitions for usage in client and server usage
+		SteamInventory()->LoadItemDefinitions();
+	}
+}
+
+void USteamworksManager::GetAllInventoryItems()
+{
+	SteamInventoryResult_t Result;
+
+	if (SteamInventory() && SteamInventory()->GetAllItems(&Result))
+	{
+	}
+}
+
+bool USteamworksManager::HasInstanceOf(int32 DefinitionId) const
+{
+	for (int32 i = 0; i < Inventory.Num(); i++)
+	{
+		if (Inventory[i]->Details.m_iDefinition == DefinitionId)
+		{
+			return true;
+		}
+	}
+
+	return false;
 }
 
 void USteamworksManager::Shutdown()
@@ -182,6 +260,7 @@ void USteamworksManager::Shutdown()
 
 	if (bInitialized)
 	{
+		SteamAPI_Shutdown();
 		SteamGameServer_Shutdown();
 	}
 }
@@ -275,7 +354,6 @@ UTexture2D* USteamworksManager::GetAvatar(class APlayerState* PlayerState, UText
 
 UTexture2D* USteamworksManager::GetAvatarBySteamId(CSteamID SteamId)
 {
-
 	if (!SteamId.IsValid())
 	{
 		return nullptr;
