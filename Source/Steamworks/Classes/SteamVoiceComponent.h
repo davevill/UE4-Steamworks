@@ -10,6 +10,7 @@
 
 
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FSteamOnVoiceChangedSignature, bool, bTalking, bool, bLocalPlayer);
 
 
 
@@ -31,7 +32,16 @@ protected:
 
 	bool bRecordingVoice;
 
+	UFUNCTION()
+	virtual void OnVoiceFinished();
+
+	UPROPERTY()
+	bool bVoiceActive;
+
+	FTimerHandle VoiceFinishTimer;
+
 public:
+
 
 
 
@@ -65,5 +75,11 @@ public:
 
 	UFUNCTION(BlueprintPure, Category="Steam Voice Component")
 	bool IsTalking() const { return true; }
+
+
+
+	/** Called whenever the voice state has changed (taling/not-talking) */
+	UPROPERTY(BlueprintAssignable, Category="Steam Voice Component")
+	FSteamOnVoiceChangedSignature OnVoiceChanged;
 
 };

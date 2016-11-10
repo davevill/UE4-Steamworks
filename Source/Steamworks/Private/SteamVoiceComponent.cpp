@@ -30,6 +30,8 @@ void USteamVoiceComponent::InitializeComponent()
 	SoundStreaming->bLooping = true;
 
 	SetWaveParameter("Voice", SoundStreaming);
+
+	//OnAudioFinished.AddDynamic(this, &USteamVoiceComponent::OnVoiceFinished);
 }
 
 void USteamVoiceComponent::UninitializeComponent()
@@ -62,11 +64,12 @@ void USteamVoiceComponent::TickComponent(float DeltaTime, ELevelTick TickType, F
 			ServerOnVoice(VoiceBuffer);
 		}
 	}
+}
 
-	if (IsPlaying() == false)
-	{
-		Play();
-	}
+void USteamVoiceComponent::OnVoiceFinished()
+{
+	OnVoiceChanged.Broadcast(false, false);
+	bVoiceActive = false;
 }
 
 void USteamVoiceComponent::Talk()
@@ -77,6 +80,8 @@ void USteamVoiceComponent::Talk()
 	{
 		SteamUser()->StartVoiceRecording();
 	}
+
+	OnVoiceChanged.Broadcast(true, true);
 }
 
 void USteamVoiceComponent::ShutUp()
@@ -87,6 +92,8 @@ void USteamVoiceComponent::ShutUp()
 	{
 		SteamUser()->StopVoiceRecording();
 	}
+
+	OnVoiceChanged.Broadcast(false, true);
 }
 
 bool USteamVoiceComponent::ServerOnVoice_Validate(const TArray<uint8>& VoiceData)
@@ -106,8 +113,24 @@ void USteamVoiceComponent::MulticastOnVoice_Implementation(const TArray<uint8>& 
 
 	APawn* Pawn = Cast<APawn>(GetOwner());
 
-	if (Pawn && Pawn->IsLocallyControlled())
+	//we shouldn't hear ourselves 
+	if (Pawn && Pawn->Controller == UGameplayStatics::GetPlayerController(this, 0))
 	{
+
+		/*
+		//testing...
+		if (Pawn->PlayerState && Pawn->PlayerState->bIsABot == false)
+		{
+			for (TObjectIterator<USteamVoiceComponent> Itr; Itr; ++Itr)
+			{
+				if (Itr->GetWorld() == GetWorld() && *Itr != this && Itr->IsPendingKillOrUnreachable() == false)
+				{
+					Itr->MulticastOnVoice_Implementation(VoiceData);
+				}
+			}
+		}*/
+
+
 		return;
 	}
 
@@ -119,6 +142,26 @@ void USteamVoiceComponent::MulticastOnVoice_Implementation(const TArray<uint8>& 
 	if (Result == k_EVoiceResultOK && WrittenSize > 0)
 	{
 		SoundStreaming->QueueAudio(Buffer, WrittenSize);
+	}
+
+	if (IsPlaying() == false)
+	{
+		Play();
+	}
+
+	if (bVoiceActive == false)
+	{
+
+		OnVoiceChanged.Broadcast(true, false);
+
+		if (VoiceFinishTimer.IsValid())
+		{
+			GetOwner()->GetWorldTimerManager().ClearTimer(VoiceFinishTimer);
+		}
+
+		GetOwner()->GetWorldTimerManager().SetTimer(VoiceFinishTimer, this, &USteamVoiceComponent::OnVoiceFinished, 1.f, false);
+
+		bVoiceActive = true;
 	}
 }
 
