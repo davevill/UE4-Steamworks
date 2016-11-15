@@ -207,13 +207,16 @@ void USteamworksManager::Init()
 			}*/	
 		}
 
-		if (SteamAPI_Init())
+		if (SteamUser() == nullptr)
 		{
-			UE_LOG_ONLINE(Log, TEXT("SteamAPI_Init() succeeded"));
-		}
-		else
-		{
-			UE_LOG_ONLINE(Warning, TEXT("SteamAPI_Init() failed, make sure to run this with steam or if in development add the steam_appid.txt in the binary folder"));
+			if (SteamAPI_Init())
+			{
+				UE_LOG_ONLINE(Log, TEXT("SteamAPI_Init() succeeded"));
+			}
+			else
+			{
+				UE_LOG_ONLINE(Warning, TEXT("SteamAPI_Init() failed, make sure to run this with steam or if in development add the steam_appid.txt in the binary folder"));
+			}
 		}
 
 		bInitialized = true;
@@ -261,7 +264,7 @@ void USteamworksManager::Shutdown()
 	if (bInitialized)
 	{
 		SteamAPI_Shutdown();
-		SteamGameServer_Shutdown();
+		//SteamGameServer_Shutdown();
 	}
 }
 

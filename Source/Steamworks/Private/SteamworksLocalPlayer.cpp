@@ -9,6 +9,8 @@
 
 FString USteamworksLocalPlayer::GetGameLoginOptions() const
 {
+	return FString();
+
 	FString TicketOption = "ticket=";
 	
 	uint32 ByteSize;
