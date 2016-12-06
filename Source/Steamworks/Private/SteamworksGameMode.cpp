@@ -31,7 +31,7 @@ void ASteamworksGameMode::PreLogin(const FString& Options, const FString& Addres
 	//This isn't working, let's bypass it for now
 	Super::PreLogin(Options, Address, UniqueId, ErrorMessage);
 	return;
-	FString Ticket = ParseOption(Options, "ticket");
+	FString Ticket = UGameplayStatics::ParseOption(Options, "ticket");
 
 
 	TArray<uint8> Buffer;

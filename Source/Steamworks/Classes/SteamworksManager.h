@@ -42,6 +42,8 @@ protected:
 	TMap<uint64, UTexture2D*> Avatars;
 
 
+	bool LoadSteamAvatar(CSteamID SteamId, UTexture2D* AvatarTexture) const;
+
 	void CopySteamAvatar(int Handle, UTexture2D* AvatarTexture) const;
 
 

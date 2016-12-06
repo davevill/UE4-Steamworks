@@ -87,6 +87,11 @@ void FSteamworksCallbacks::OnInventoryUpdate(SteamInventoryFullUpdate_t* pData)
 void FSteamworksCallbacks::OnPersonaStateChange(PersonaStateChange_t* pData)
 {
 	UTexture2D* AvatarTexture = Manager->GetAvatarBySteamId(pData->m_ulSteamID);
+
+	CSteamID SteamId;
+	SteamId.SetFromUint64(pData->m_ulSteamID);
+
+	Manager->LoadSteamAvatar(SteamId, AvatarTexture);
 }
 
 void FSteamworksCallbacks::OnAvatarImageLoaded(AvatarImageLoaded_t* pData)
@@ -94,10 +99,7 @@ void FSteamworksCallbacks::OnAvatarImageLoaded(AvatarImageLoaded_t* pData)
 	UTexture2D* AvatarTexture = Manager->GetAvatarBySteamId(pData->m_steamID.ConvertToUint64());
 	ensure(AvatarTexture);
 
-	if (AvatarTexture)
-	{
-		Manager->CopySteamAvatar(pData->m_iImage, AvatarTexture);
-	}
+	Manager->LoadSteamAvatar(pData->m_steamID, AvatarTexture);
 }
 
 void FSteamworksCallbacks::OnValidateTicket(ValidateAuthTicketResponse_t* pResponse)
@@ -355,6 +357,26 @@ UTexture2D* USteamworksManager::GetAvatar(class APlayerState* PlayerState, UText
 	return FailoverTexture;
 }
 
+bool USteamworksManager::LoadSteamAvatar(CSteamID SteamId, UTexture2D* AvatarTexture) const
+{
+	if (AvatarTexture != nullptr && SteamFriends() != nullptr && SteamId.IsValid())
+	{
+		if (AvatarTexture)
+		{
+			int Handle = SteamFriends()->GetLargeFriendAvatar(SteamId);
+
+			if (Handle > 0)
+			{
+				CopySteamAvatar(Handle, AvatarTexture);
+
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
 UTexture2D* USteamworksManager::GetAvatarBySteamId(CSteamID SteamId)
 {
 	if (!SteamId.IsValid())
@@ -375,12 +397,13 @@ UTexture2D* USteamworksManager::GetAvatarBySteamId(CSteamID SteamId)
 	//Create the texture
 	AvatarTexture = UTexture2D::CreateTransient(STEAMWORKS_AVATAR_SIZE, STEAMWORKS_AVATAR_SIZE, PF_R8G8B8A8);
 
-	int Handle = SteamFriends()->GetLargeFriendAvatar(SteamId);
 
-	//check if Avatar is inmediatly available
-	if (Handle > 0)
+	if (!SteamFriends()->RequestUserInformation(SteamId, false))
 	{
-		CopySteamAvatar(Handle, AvatarTexture);
+		//the avatar is imediatly available
+		bool bResult = LoadSteamAvatar(SteamId, AvatarTexture);
+
+		ensure(bResult == true);
 	}
 	else
 	{
@@ -392,12 +415,6 @@ UTexture2D* USteamworksManager::GetAvatarBySteamId(CSteamID SteamId)
 		AvatarTexture->NeverStream = true;
 
 		AvatarTexture->UpdateResource();
-
-		if (Handle == 0)
-		{
-			SteamFriends()->RequestUserInformation(SteamId, false);
-		}
-
 		//steam will call us back once the avatar is ready to be read
 	}
 
