@@ -41,12 +41,11 @@ void USteamVoiceComponent::UninitializeComponent()
 	Super::UninitializeComponent();
 }
 
-#define STEAMWORKS_TICK_VOICE_BUFFER_SIZE 28672
+#define STEAMWORKS_TICK_VOICE_BUFFER_SIZE 512
 
 void USteamVoiceComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-
 
 	if (bRecordingVoice && SteamUser())
 	{
@@ -128,7 +127,7 @@ void USteamVoiceComponent::MulticastOnVoice_Implementation(const TArray<uint8>& 
 					Itr->MulticastOnVoice_Implementation(VoiceData);
 				}
 			}
-		}*/
+		}//*/
 
 
 		return;
