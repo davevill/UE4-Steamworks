@@ -3,6 +3,7 @@
 #include "SteamworksPrivatePCH.h"
 #include "SteamVoiceComponent.h"
 #include "Runtime/Engine/Classes/Sound/SoundWaveProcedural.h"
+#include "SteamRadio.h"
 
 
 
@@ -12,6 +13,8 @@
 USteamVoiceComponent::USteamVoiceComponent()
 {
 	PrimaryComponentTick.bCanEverTick = true;
+	//PrimaryComponentTick.bRunOnAnyThread = true;
+	PrimaryComponentTick.TickInterval = 1.f / (90 / 2.f);
 	bWantsInitializeComponent = true;
 
 	bReplicates = true;
@@ -28,39 +31,133 @@ void USteamVoiceComponent::InitializeComponent()
 	SoundStreaming->Duration = INDEFINITELY_LOOPING_DURATION;
 	SoundStreaming->SoundGroup = SOUNDGROUP_Voice;
 	SoundStreaming->bLooping = true;
+	SoundStreaming->bProcedural = true;
 
 	SetWaveParameter("Voice", SoundStreaming);
 
 	//OnAudioFinished.AddDynamic(this, &USteamVoiceComponent::OnVoiceFinished);
+
+
+	/*UNetConnection* Connection = GetOwner()->GetNetConnection();
+
+	if (Connection)
+	{
+		UChannel* Channel = Connection->CreateChannel(EChannelType::CHTYPE_Voice, false);
+
+		ensure(Channel != nullptr);
+
+		Channel->IsUnreachable();
+	}*/
+
+
+	//ensure(Channel);
+
+	if (bOpenMic)
+	{
+		//Talk();
+	}
+}
+
+class ASteamRadio* USteamVoiceComponent::CreateSteamRadioInstance()
+{
+	ASteamRadio* Instance = GetWorld()->SpawnActor<ASteamRadio>();
+
+	if (Instance)
+	{
+		Instance->InitializePlaybackChannels(RadioVoiceCue);
+	}
+
+	return Instance;
+}
+
+class ASteamRadio* USteamVoiceComponent::GetSteamRadioInstance()
+{
+	ASteamRadio* Instance = nullptr;
+
+	TActorIterator<ASteamRadio> Itr(GetWorld());
+
+	if (Itr)
+	{
+		Instance = *Itr;
+	}
+	else
+	{
+		Instance = CreateSteamRadioInstance();
+		ensure(Instance != nullptr);
+	}
+
+	ensure(Instance != nullptr);
+
+	return Instance;
 }
 
 void USteamVoiceComponent::UninitializeComponent()
 {
 	SoundStreaming = nullptr;
 
+	APawn* Pawn = Cast<APawn>(GetOwner());
+
+	if (Pawn && Pawn->Controller == UGameplayStatics::GetPlayerController(this, 0))
+	{
+		if (bOpenMic && SteamUser())
+		{
+			SteamUser()->StopVoiceRecording();
+		}
+	}
+
 	Super::UninitializeComponent();
 }
 
-#define STEAMWORKS_TICK_VOICE_BUFFER_SIZE 512
+#define STEAMWORKS_TICK_VOICE_BUFFER_SIZE 1024
 
 void USteamVoiceComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
-	if (bRecordingVoice && SteamUser())
+	APawn* Pawn = Cast<APawn>(GetOwner());
+
+	//we shouldn't hear ourselves 
+	if (Pawn && Pawn->Controller == UGameplayStatics::GetPlayerController(this, 0))
 	{
-		VoiceBuffer.Empty(STEAMWORKS_TICK_VOICE_BUFFER_SIZE);
-		VoiceBuffer.Reserve(STEAMWORKS_TICK_VOICE_BUFFER_SIZE);
-
-		uint32 WrittenSize = 0;
-
-		EVoiceResult Result = SteamUser()->GetVoice(true, VoiceBuffer.GetData(), STEAMWORKS_TICK_VOICE_BUFFER_SIZE, &WrittenSize, false, nullptr, 0, nullptr, 0);
-
-		if (Result == k_EVoiceResultOK)
+		if (bOpenMic && SteamUser() && bRecordingVoice == false)
 		{
-			VoiceBuffer.SetNumUninitialized(WrittenSize, false);
+			SteamUser()->StartVoiceRecording();
+			bRecordingVoice = true;
+		}
 
-			ServerOnVoice(VoiceBuffer);
+		if (bRecordingVoice && SteamUser())
+		{
+			uint32 AvailableSize = 0;
+
+			EVoiceResult PeekResult = SteamUser()->GetAvailableVoice(&AvailableSize, nullptr, 0);
+
+			if (AvailableSize > 0)
+			{
+				VoiceBuffer.SetNumUninitialized(STEAMWORKS_TICK_VOICE_BUFFER_SIZE, false);
+
+				//VoiceBuffer.Empty(STEAMWORKS_TICK_VOICE_BUFFER_SIZE);
+				//VoiceBuffer.Reserve(STEAMWORKS_TICK_VOICE_BUFFER_SIZE);
+
+				//uint8 Buffer[STEAMWORKS_TICK_VOICE_BUFFER_SIZE];
+
+				uint32 WrittenSize = 0;
+
+				EVoiceResult Result = SteamUser()->GetVoice(true, VoiceBuffer.GetData(), STEAMWORKS_TICK_VOICE_BUFFER_SIZE, &WrittenSize, false, nullptr, 0, nullptr, 0);
+
+				ensure(Result == k_EVoiceResultOK || Result == k_EVoiceResultNoData || Result == k_EVoiceResultNotRecording);
+
+				if (Result == k_EVoiceResultOK)
+				{
+					VoiceBuffer.SetNumUninitialized(WrittenSize, false);
+
+					ServerOnVoice(VoiceBuffer);
+				}
+				else
+				if (k_EVoiceResultNotRecording)
+				{
+					bRecordingVoice = false;
+				}
+			}
 		}
 	}
 }
@@ -85,7 +182,7 @@ void USteamVoiceComponent::Talk()
 
 void USteamVoiceComponent::ShutUp()
 {
-	bRecordingVoice = false;
+	//bRecordingVoice = false;
 
 	if (SteamUser())
 	{
@@ -112,13 +209,30 @@ void USteamVoiceComponent::MulticastOnVoice_Implementation(const TArray<uint8>& 
 
 	APawn* Pawn = Cast<APawn>(GetOwner());
 
+	int32 PlayerIndex = -1;
+
+	if (Pawn && Pawn->PlayerState && Radio)
+	{
+		AGameStateBase* GameState = UGameplayStatics::GetGameState(this);
+
+		if (GameState)
+		{
+			for (int32 i = 0; i < GameState->PlayerArray.Num(); i++)
+			{
+				if (GameState->PlayerArray[i] == Pawn->PlayerState)
+				{
+					PlayerIndex = i;
+					break;
+				}
+			}
+		}
+	}
+
 	//we shouldn't hear ourselves 
 	if (Pawn && Pawn->Controller == UGameplayStatics::GetPlayerController(this, 0))
-	{
-
-		/*
+	{	
 		//testing...
-		if (Pawn->PlayerState && Pawn->PlayerState->bIsABot == false)
+		/*if (Pawn->PlayerState && Pawn->PlayerState->bIsABot == false)
 		{
 			for (TObjectIterator<USteamVoiceComponent> Itr; Itr; ++Itr)
 			{
@@ -127,9 +241,7 @@ void USteamVoiceComponent::MulticastOnVoice_Implementation(const TArray<uint8>& 
 					Itr->MulticastOnVoice_Implementation(VoiceData);
 				}
 			}
-		}//*/
-
-
+		}*/
 		return;
 	}
 
@@ -141,6 +253,11 @@ void USteamVoiceComponent::MulticastOnVoice_Implementation(const TArray<uint8>& 
 	if (Result == k_EVoiceResultOK && WrittenSize > 0)
 	{
 		SoundStreaming->QueueAudio(Buffer, WrittenSize);
+
+		if (Radio && bTalkingInRadio)
+		{
+			Radio->PushRadioAudio(Buffer, WrittenSize, PlayerIndex);
+		}
 	}
 
 	if (IsPlaying() == false)
@@ -163,6 +280,71 @@ void USteamVoiceComponent::MulticastOnVoice_Implementation(const TArray<uint8>& 
 		bVoiceActive = true;
 	}
 }
+
+
+bool USteamVoiceComponent::ServerToggleRadio_Validate(bool bToggled)
+{
+	return true;
+}
+
+void USteamVoiceComponent::ServerToggleRadio_Implementation(bool bToggled)
+{
+	ToggleRadio(bToggled);
+}
+
+void USteamVoiceComponent::ToggleRadio(bool bEnabled)
+{
+	if (GetOwner()->HasAuthority() == false) return ServerToggleRadio(bEnabled);
+
+	if (bTalkingInRadio == bEnabled) return;
+
+	bTalkingInRadio = bEnabled;
+	UpdateRadioTalkingState();
+}
+
+void USteamVoiceComponent::SetRadio(bool bEnabled)
+{
+	if ((Radio != nullptr) == bEnabled) return;
+
+	if (bEnabled)
+	{
+		Radio = GetSteamRadioInstance();
+	}
+	else
+	{
+		Radio = nullptr;
+	}
+}
+
+void USteamVoiceComponent::UpdateRadioTalkingState()
+{
+	if (Radio)
+	{				
+		bool bLocalPlayer = false;
+
+		APawn* Pawn = Cast<APawn>(GetOwner());
+		
+		if (Pawn && Pawn->Controller && Pawn->Controller == UGameplayStatics::GetPlayerController(this, 0))
+		{
+			bLocalPlayer = true;	
+		}
+
+		OnRadioToggle.Broadcast(bTalkingInRadio, bLocalPlayer);
+	}
+}
+
+void USteamVoiceComponent::OnRep_TalkingInRadio()
+{
+	UpdateRadioTalkingState();
+}
+
+void USteamVoiceComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+	DOREPLIFETIME(USteamVoiceComponent, bTalkingInRadio);
+}
+
 
 
 

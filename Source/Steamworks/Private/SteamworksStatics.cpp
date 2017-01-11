@@ -61,7 +61,7 @@ FString USteamworksStatics::GetLocalSteamId(UObject* WorldContextObject)
 		return FString::Printf(TEXT("%llu"), SteamUser()->GetSteamID().ConvertToUint64());
 	}
 
-	return FString();
+	return FString("null");
 }
 
 

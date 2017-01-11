@@ -257,6 +257,11 @@ bool USteamworksManager::HasInstanceOf(int32 DefinitionId) const
 
 void USteamworksManager::Shutdown()
 {
+	if (SteamUser())
+	{
+		SteamUser()->StopVoiceRecording();
+	}
+
 	if (Callbacks)
 	{
 		delete Callbacks;

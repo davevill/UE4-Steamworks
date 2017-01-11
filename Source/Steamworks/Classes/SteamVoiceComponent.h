@@ -11,6 +11,8 @@
 
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FSteamOnVoiceChangedSignature, bool, bTalking, bool, bLocalPlayer);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FSteamOnRadioToggleSignature, bool, bToggled, bool, bLocalPlayer);
+
 
 
 
@@ -40,9 +42,28 @@ protected:
 
 	FTimerHandle VoiceFinishTimer;
 
+
+	virtual void UpdateRadioTalkingState();
+
+	virtual class ASteamRadio* CreateSteamRadioInstance();
+	virtual class ASteamRadio* GetSteamRadioInstance();
+
+	UFUNCTION()
+	void OnRep_TalkingInRadio();
+
 public:
 
+	UPROPERTY(BlueprintReadOnly, Category="Steam Voice Component")
+	class ASteamRadio* Radio;
 
+	UPROPERTY(BlueprintReadOnly, Category="Steam Voice Component", ReplicatedUsing=OnRep_TalkingInRadio)
+	bool bTalkingInRadio;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category="Steam Voice Component")
+	bool bOpenMic;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category="Steam Voice Component")
+	USoundCue* RadioVoiceCue;
 
 
 
@@ -63,10 +84,20 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Steam Voice Component")
 	void ShutUp();
 
+	/* Whether to join the radio channel or not */
+	UFUNCTION(BlueprintCallable, Category="Steam Voice Component")
+	void SetRadio(bool bEnabled);
+
+	/* Whether to send radio data */
+	UFUNCTION(BlueprintCallable, Category="Steam Voice Component")
+	void ToggleRadio(bool bEnabled);
 
 	/** Send compressed voice data to the server*/
 	UFUNCTION(Server, Reliable, WithValidation)
 	void ServerOnVoice(const TArray<uint8>& VoiceData);
+
+	UFUNCTION(Server, Reliable, WithValidation)
+	void ServerToggleRadio(bool bToggled);
 
 	/** Receive compressed voice data from the server */
 	UFUNCTION(NetMulticast, Unreliable)
@@ -81,5 +112,8 @@ public:
 	/** Called whenever the voice state has changed (taling/not-talking) */
 	UPROPERTY(BlueprintAssignable, Category="Steam Voice Component")
 	FSteamOnVoiceChangedSignature OnVoiceChanged;
+
+	UPROPERTY(BlueprintAssignable, Category="Steam Voice Component")
+	FSteamOnRadioToggleSignature OnRadioToggle;
 
 };
