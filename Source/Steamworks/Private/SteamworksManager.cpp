@@ -133,6 +133,21 @@ USteamworksManager::USteamworksManager(const FObjectInitializer& ObjectInitializ
 {
 	Callbacks = nullptr;
 	bInitialized = false;
+
+	VoiceCapture = FVoiceModule::Get().CreateVoiceCapture();
+	VoiceEncoder = FVoiceModule::Get().CreateVoiceEncoder();
+	VoiceDecoder = FVoiceModule::Get().CreateVoiceDecoder();
+
+	MaxRawCaptureDataSize = STEAMWORKS_RAW_VOICE_BUFFER_SIZE;
+	MaxCompressedDataSize = STEAMWORKS_VOICE_BUFFER_SIZE;
+	MaxUncompressedDataSize = MaxRawCaptureDataSize;
+	MaxRemainderSize = 1 * 1024;
+	LastRemainderSize = 0;
+
+	RawCaptureData.AddUninitialized(MaxRawCaptureDataSize);
+	CompressedData.AddUninitialized(MaxCompressedDataSize);
+	UncompressedData.AddUninitialized(MaxUncompressedDataSize);
+	Remainder.AddUninitialized(MaxRemainderSize);
 }
 
 void USteamworksManager::Init()
@@ -231,6 +246,8 @@ void USteamworksManager::Init()
 		//load the definitions for usage in client and server usage
 		SteamInventory()->LoadItemDefinitions();
 	}
+
+	bRecordingVoice = false;
 }
 
 void USteamworksManager::GetAllInventoryItems()
@@ -257,10 +274,7 @@ bool USteamworksManager::HasInstanceOf(int32 DefinitionId) const
 
 void USteamworksManager::Shutdown()
 {
-	if (SteamUser())
-	{
-		SteamUser()->StopVoiceRecording();
-	}
+	SetVoiceRecording(false);
 
 	if (Callbacks)
 	{
@@ -273,6 +287,9 @@ void USteamworksManager::Shutdown()
 		SteamAPI_Shutdown();
 		//SteamGameServer_Shutdown();
 	}
+
+	VoiceCapture->Stop();
+	VoiceCapture->Shutdown();
 }
 
 void USteamworksManager::Tick(float DeltaTime)
@@ -281,6 +298,76 @@ void USteamworksManager::Tick(float DeltaTime)
 	{
 		SteamAPI_RunCallbacks();
 	}
+}
+
+void USteamworksManager::SetVoiceRecording(bool bEnabled)
+{
+	if (bRecordingVoice == bEnabled || SteamUser() == nullptr) return;
+
+	bRecordingVoice = bEnabled;
+
+	if (bRecordingVoice)
+	{
+
+		VoiceCapture->Start();
+		//SteamUser()->StartVoiceRecording();
+		//SteamFriends()->SetInGameVoiceSpeaking(SteamUser()->GetSteamID(), true);
+	}
+	else
+	{
+		VoiceCapture->Stop();
+
+		//SteamUser()->StopVoiceRecording();
+		//SteamFriends()->SetInGameVoiceSpeaking(SteamUser()->GetSteamID(), false);
+	}
+}
+
+bool USteamworksManager::GetVoice(uint8* DestBuffer, uint32& WrittenSize)
+{
+	bool bDoWork = false;
+	uint32 TotalVoiceBytes = 0;
+
+	uint32 NewVoiceDataBytes = 0;
+	EVoiceCaptureState::Type MicState = VoiceCapture->GetCaptureState(NewVoiceDataBytes);
+
+	if (MicState == EVoiceCaptureState::Ok && NewVoiceDataBytes > 0)
+	{
+		TotalVoiceBytes = NewVoiceDataBytes + LastRemainderSize;
+		RawCaptureData.Empty(MaxRawCaptureDataSize);
+		RawCaptureData.AddUninitialized(TotalVoiceBytes);
+
+		if (LastRemainderSize > 0)
+		{
+			FMemory::Memcpy(RawCaptureData.GetData(), Remainder.GetData(), LastRemainderSize);
+		}
+
+		MicState = VoiceCapture->GetVoiceData(RawCaptureData.GetData() + LastRemainderSize, NewVoiceDataBytes, NewVoiceDataBytes);
+		TotalVoiceBytes = NewVoiceDataBytes + LastRemainderSize;
+		bDoWork = MicState == EVoiceCaptureState::Ok;
+	}
+
+	if (bDoWork && TotalVoiceBytes > 0)
+	{
+		WrittenSize = MaxCompressedDataSize;
+		LastRemainderSize = VoiceEncoder->Encode(RawCaptureData.GetData(), TotalVoiceBytes, DestBuffer, WrittenSize);
+
+		if (LastRemainderSize > 0)
+		{
+			FMemory::Memcpy(Remainder.GetData(), RawCaptureData.GetData() + (TotalVoiceBytes - LastRemainderSize), LastRemainderSize);
+		}
+
+		return WrittenSize > 0;
+	}
+
+	return false;
+}
+
+bool USteamworksManager::DecompressVoice(const uint8* CompressedBuffer, uint32 CompressedSize, uint8* DestBuffer, uint32& WrittenSize)
+{
+	WrittenSize = STEAMWORKS_RAW_VOICE_BUFFER_SIZE;
+	VoiceDecoder->Decode(CompressedBuffer, CompressedSize, DestBuffer, WrittenSize);
+
+	return WrittenSize > 0;
 }
 
 class UWorld* USteamworksManager::GetWorld() const

@@ -15,6 +15,32 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FSteamOnRadioToggleSignature, bool,
 
 
 
+#define STEAMWORKS_TICK_VOICE_BUFFER_SIZE 8192
+
+
+
+USTRUCT()
+struct FSteamworksVoicePacket
+{
+	GENERATED_USTRUCT_BODY()
+
+	UPROPERTY()
+	TArray<uint8> Data;
+
+	bool NetSerialize(FArchive& Ar, class UPackageMap* Map, bool& bOutSuccess);
+};
+
+template<>
+struct TStructOpsTypeTraits<FSteamworksVoicePacket> : public TStructOpsTypeTraitsBase
+{
+	enum
+	{
+		WithNetSerializer = true
+	};
+};
+
+
+
 
 
 /** Represents a voice in the game, if part of a local-controlled pawn it can send voice to the server, 
@@ -23,6 +49,9 @@ UCLASS(ClassGroup=(Steamworks), meta=(BlueprintSpawnableComponent), Config=Game)
 class STEAMWORKS_API USteamVoiceComponent : public UAudioComponent
 {
 	GENERATED_BODY()
+
+	FSteamworksVoicePacket TempVoicePacket;	
+
 protected:
 
 
@@ -50,6 +79,9 @@ protected:
 
 	UFUNCTION()
 	void OnRep_TalkingInRadio();
+
+	UPROPERTY()
+	class USteamworksManager* Manager;
 
 public:
 
@@ -94,14 +126,14 @@ public:
 
 	/** Send compressed voice data to the server*/
 	UFUNCTION(Server, Reliable, WithValidation)
-	void ServerOnVoice(const TArray<uint8>& VoiceData);
+	void ServerOnVoice(const FSteamworksVoicePacket& VoicePacket);
 
 	UFUNCTION(Server, Reliable, WithValidation)
 	void ServerToggleRadio(bool bToggled);
 
 	/** Receive compressed voice data from the server */
 	UFUNCTION(NetMulticast, Unreliable)
-	void MulticastOnVoice(const TArray<uint8>& VoiceData);
+	void MulticastOnVoice(const FSteamworksVoicePacket& VoicePacket);
 
 
 	UFUNCTION(BlueprintPure, Category="Steam Voice Component")

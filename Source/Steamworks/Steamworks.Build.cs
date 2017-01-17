@@ -51,7 +51,8 @@ public class Steamworks : ModuleRules
 				"CoreUObject",
 				"Engine",
                 "Networking",
-                "HTTP"
+                "HTTP",
+                "Voice"
             }
 		);
 		

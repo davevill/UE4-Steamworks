@@ -16,7 +16,8 @@
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FSteamOnInventoryUpdateSignature);
 
 
-
+#define STEAMWORKS_VOICE_BUFFER_SIZE 51200
+#define STEAMWORKS_RAW_VOICE_BUFFER_SIZE 102400
 
 
 
@@ -27,6 +28,22 @@ class STEAMWORKS_API USteamworksManager : public UObject, public FTickableGameOb
 
 	class FSteamworksCallbacks* Callbacks;
 	friend class FSteamworksCallbacks;
+
+
+	TSharedPtr<class IVoiceCapture> VoiceCapture;
+	TSharedPtr<class IVoiceEncoder> VoiceEncoder;
+	TSharedPtr<class IVoiceDecoder> VoiceDecoder;
+
+	TArray<uint8> RawCaptureData;
+	int32 MaxRawCaptureDataSize;
+	TArray<uint8> CompressedData;
+	int32 MaxCompressedDataSize;
+	TArray<uint8> UncompressedData;
+	int32 MaxUncompressedDataSize;
+	TArray<uint8> Remainder;
+	int32 MaxRemainderSize;
+	int32 LastRemainderSize;
+
 
 protected:
 
@@ -47,6 +64,8 @@ protected:
 	void CopySteamAvatar(int Handle, UTexture2D* AvatarTexture) const;
 
 
+
+	bool bRecordingVoice;
 
 
 public:
@@ -107,4 +126,17 @@ public:
 	UPROPERTY(BlueprintAssignable, Category="Steamworks")
 	FSteamOnInventoryUpdateSignature OnInventoryUpdate;
 
+
+
+
+
+	UFUNCTION(BlueprintCallable, Category="Steamworks")
+	void SetVoiceRecording(bool bEnabled);
+
+	UFUNCTION(BlueprintPure, Category="Steamworks")
+	inline bool IsRecordingVoice() const { return bRecordingVoice; }
+
+
+	bool GetVoice(uint8* DestBuffer, uint32& WrittenSize);
+	bool DecompressVoice(const uint8* CompressedBuffer, uint32 CompressedSize, uint8* DestBuffer, uint32& WrittenSize);
 };

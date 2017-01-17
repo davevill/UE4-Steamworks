@@ -3,7 +3,10 @@
 #include "SteamworksPrivatePCH.h"
 #include "SteamVoiceComponent.h"
 #include "Runtime/Engine/Classes/Sound/SoundWaveProcedural.h"
+#include "SteamworksManager.h"
 #include "SteamRadio.h"
+#include "Voice.h"
+
 
 
 
@@ -14,7 +17,7 @@ USteamVoiceComponent::USteamVoiceComponent()
 {
 	PrimaryComponentTick.bCanEverTick = true;
 	//PrimaryComponentTick.bRunOnAnyThread = true;
-	PrimaryComponentTick.TickInterval = 1.f / (90 / 2.f);
+	PrimaryComponentTick.TickInterval = 0.0;//125f;
 	bWantsInitializeComponent = true;
 
 	bReplicates = true;
@@ -26,7 +29,7 @@ void USteamVoiceComponent::InitializeComponent()
 	Super::InitializeComponent();
 
 	SoundStreaming = NewObject<USoundWaveProcedural>();
-	SoundStreaming->SampleRate = SteamUser() == nullptr ? 11025 : SteamUser()->GetVoiceOptimalSampleRate();
+	SoundStreaming->SampleRate = VOICE_SAMPLE_RATE;//SteamUser() == nullptr ? 11025 : SteamUser()->GetVoiceOptimalSampleRate();
 	SoundStreaming->NumChannels = 1;
 	SoundStreaming->Duration = INDEFINITELY_LOOPING_DURATION;
 	SoundStreaming->SoundGroup = SOUNDGROUP_Voice;
@@ -49,13 +52,7 @@ void USteamVoiceComponent::InitializeComponent()
 		Channel->IsUnreachable();
 	}*/
 
-
-	//ensure(Channel);
-
-	if (bOpenMic)
-	{
-		//Talk();
-	}
+	Manager = USteamworksManager::Get(this);
 }
 
 class ASteamRadio* USteamVoiceComponent::CreateSteamRadioInstance()
@@ -95,69 +92,59 @@ void USteamVoiceComponent::UninitializeComponent()
 {
 	SoundStreaming = nullptr;
 
-	APawn* Pawn = Cast<APawn>(GetOwner());
-
-	if (Pawn && Pawn->Controller == UGameplayStatics::GetPlayerController(this, 0))
-	{
-		if (bOpenMic && SteamUser())
-		{
-			SteamUser()->StopVoiceRecording();
-		}
-	}
-
 	Super::UninitializeComponent();
 }
-
-#define STEAMWORKS_TICK_VOICE_BUFFER_SIZE 1024
 
 void USteamVoiceComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
+
 	APawn* Pawn = Cast<APawn>(GetOwner());
 
 	//we shouldn't hear ourselves 
-	if (Pawn && Pawn->Controller == UGameplayStatics::GetPlayerController(this, 0))
-	{
-		if (bOpenMic && SteamUser() && bRecordingVoice == false)
+	if (Pawn && Pawn->Controller == UGameplayStatics::GetPlayerController(this, 0) && Manager)
+	{	
+		if (bOpenMic)
 		{
-			SteamUser()->StartVoiceRecording();
+			Manager->SetVoiceRecording(true);
 			bRecordingVoice = true;
 		}
 
 		if (bRecordingVoice && SteamUser())
 		{
-			uint32 AvailableSize = 0;
+			FSteamworksVoicePacket& VoicePacket = TempVoicePacket;
+			VoicePacket.Data.SetNumUninitialized(STEAMWORKS_VOICE_BUFFER_SIZE, false);
 
-			EVoiceResult PeekResult = SteamUser()->GetAvailableVoice(&AvailableSize, nullptr, 0);
+			uint32 WrittenSize = 0;
 
-			if (AvailableSize > 0)
+			if (Manager->GetVoice(VoicePacket.Data.GetData(), WrittenSize))
 			{
-				VoiceBuffer.SetNumUninitialized(STEAMWORKS_TICK_VOICE_BUFFER_SIZE, false);
+				VoicePacket.Data.SetNumUninitialized(WrittenSize, false);
 
-				//VoiceBuffer.Empty(STEAMWORKS_TICK_VOICE_BUFFER_SIZE);
-				//VoiceBuffer.Reserve(STEAMWORKS_TICK_VOICE_BUFFER_SIZE);
-
-				//uint8 Buffer[STEAMWORKS_TICK_VOICE_BUFFER_SIZE];
-
-				uint32 WrittenSize = 0;
-
-				EVoiceResult Result = SteamUser()->GetVoice(true, VoiceBuffer.GetData(), STEAMWORKS_TICK_VOICE_BUFFER_SIZE, &WrittenSize, false, nullptr, 0, nullptr, 0);
-
-				ensure(Result == k_EVoiceResultOK || Result == k_EVoiceResultNoData || Result == k_EVoiceResultNotRecording);
-
-				if (Result == k_EVoiceResultOK)
-				{
-					VoiceBuffer.SetNumUninitialized(WrittenSize, false);
-
-					ServerOnVoice(VoiceBuffer);
-				}
-				else
-				if (k_EVoiceResultNotRecording)
-				{
-					bRecordingVoice = false;
-				}
+				ServerOnVoice(VoicePacket);
 			}
+
+			/*FSteamworksVoicePacket& VoicePacket = TempVoicePacket;
+			VoicePacket.Data.SetNumUninitialized(STEAMWORKS_VOICE_BUFFER_SIZE, false);
+
+			uint32 WrittenSize = 0;
+
+			EVoiceResult Result = SteamUser()->GetVoice(true, VoicePacket.Data.GetData(), STEAMWORKS_TICK_VOICE_BUFFER_SIZE, &WrittenSize, false, nullptr, 0, nullptr, 0);
+
+			ensure(Result == k_EVoiceResultOK || Result == k_EVoiceResultNoData || Result == k_EVoiceResultNotRecording);
+
+			if (Result == k_EVoiceResultOK)
+			{
+				VoicePacket.Data.SetNumUninitialized(WrittenSize, false);
+
+				ServerOnVoice(VoicePacket);
+			}
+			else
+			if (k_EVoiceResultNotRecording)
+			{
+				bRecordingVoice = false;
+			}*/
 		}
 	}
 }
@@ -192,18 +179,18 @@ void USteamVoiceComponent::ShutUp()
 	OnVoiceChanged.Broadcast(false, true);
 }
 
-bool USteamVoiceComponent::ServerOnVoice_Validate(const TArray<uint8>& VoiceData)
+bool USteamVoiceComponent::ServerOnVoice_Validate(const FSteamworksVoicePacket& VoiceData)
 {
 	return true;
 }
 
-void USteamVoiceComponent::ServerOnVoice_Implementation(const TArray<uint8>& VoiceData)
+void USteamVoiceComponent::ServerOnVoice_Implementation(const FSteamworksVoicePacket& VoicePacket)
 {
 	//Send to relevant receipments
-	MulticastOnVoice(VoiceData);
+	MulticastOnVoice(VoicePacket);
 }
 
-void USteamVoiceComponent::MulticastOnVoice_Implementation(const TArray<uint8>& VoiceData)
+void USteamVoiceComponent::MulticastOnVoice_Implementation(const FSteamworksVoicePacket& VoicePacket)
 {
 	if (SteamUser() == nullptr) return;
 
@@ -230,25 +217,36 @@ void USteamVoiceComponent::MulticastOnVoice_Implementation(const TArray<uint8>& 
 
 	//we shouldn't hear ourselves 
 	if (Pawn && Pawn->Controller == UGameplayStatics::GetPlayerController(this, 0))
-	{	
+	{
 		//testing...
-		/*if (Pawn->PlayerState && Pawn->PlayerState->bIsABot == false)
+		if (Pawn->PlayerState && Pawn->PlayerState->bIsABot == false)
 		{
 			for (TObjectIterator<USteamVoiceComponent> Itr; Itr; ++Itr)
 			{
 				if (Itr->GetWorld() == GetWorld() && *Itr != this && Itr->IsPendingKillOrUnreachable() == false)
 				{
-					Itr->MulticastOnVoice_Implementation(VoiceData);
+					Itr->MulticastOnVoice_Implementation(VoicePacket);
 				}
 			}
-		}*/
+		}
 		return;
 	}
 
-	uint8 Buffer[28672];
+	static uint8 Buffer[STEAMWORKS_RAW_VOICE_BUFFER_SIZE];
 	uint32 WrittenSize = 0;
 
-	EVoiceResult Result = SteamUser()->DecompressVoice(VoiceData.GetData(), VoiceData.Num(), Buffer, 28672, &WrittenSize, SoundStreaming->SampleRate);
+
+	if (Manager && Manager->DecompressVoice(VoicePacket.Data.GetData(), VoicePacket.Data.Num(), Buffer, WrittenSize))
+	{
+		SoundStreaming->QueueAudio(Buffer, WrittenSize);
+
+		if (Radio && bTalkingInRadio)
+		{
+			Radio->PushRadioAudio(Buffer, WrittenSize, PlayerIndex);
+		}
+	}
+
+	/*EVoiceResult Result = SteamUser()->DecompressVoice(VoicePacket.Data.GetData(), VoicePacket.Data.Num(), Buffer, 28672, &WrittenSize, SoundStreaming->SampleRate);
 
 	if (Result == k_EVoiceResultOK && WrittenSize > 0)
 	{
@@ -258,7 +256,7 @@ void USteamVoiceComponent::MulticastOnVoice_Implementation(const TArray<uint8>& 
 		{
 			Radio->PushRadioAudio(Buffer, WrittenSize, PlayerIndex);
 		}
-	}
+	}*/
 
 	if (IsPlaying() == false)
 	{
@@ -347,5 +345,26 @@ void USteamVoiceComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>&
 
 
 
+
+//FSteamworksVoicePacket Implementation
+
+bool FSteamworksVoicePacket::NetSerialize(FArchive& Ar, class UPackageMap* Map, bool& bOutSuccess)
+{
+	bOutSuccess = true;
+
+	if (Ar.IsSaving())
+	{
+		Ar << Data;
+		return true;
+	}
+	else
+	if (Ar.IsLoading())
+	{
+		Ar << Data;
+		return true;
+	}
+
+	return false;
+}
 
 
