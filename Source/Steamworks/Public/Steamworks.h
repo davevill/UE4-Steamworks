@@ -32,3 +32,6 @@ public:
 };
 
 DECLARE_LOG_CATEGORY_EXTERN(SteamworksLog, Log, All);
+
+
+DECLARE_STATS_GROUP(TEXT("Steamworks"), STATGROUP_Steamworks, STATCAT_Advanced);

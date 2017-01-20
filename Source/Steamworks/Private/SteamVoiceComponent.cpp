@@ -9,6 +9,9 @@
 
 
 
+DECLARE_CYCLE_STAT(TEXT("SteamVoiceTick"), STAT_SteamVoiceTick, STATGROUP_Steamworks);
+DECLARE_CYCLE_STAT(TEXT("SteamVoicePlayback"), STAT_SteamVoicePlayback, STATGROUP_Steamworks);
+
 
 
 
@@ -97,6 +100,8 @@ void USteamVoiceComponent::UninitializeComponent()
 
 void USteamVoiceComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
+	SCOPE_CYCLE_COUNTER(STAT_SteamVoiceTick);
+
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
 
@@ -192,6 +197,7 @@ void USteamVoiceComponent::ServerOnVoice_Implementation(const FSteamworksVoicePa
 
 void USteamVoiceComponent::MulticastOnVoice_Implementation(const FSteamworksVoicePacket& VoicePacket)
 {
+	SCOPE_CYCLE_COUNTER(STAT_SteamVoicePlayback);
 	if (SteamUser() == nullptr) return;
 
 	APawn* Pawn = Cast<APawn>(GetOwner());
@@ -219,7 +225,7 @@ void USteamVoiceComponent::MulticastOnVoice_Implementation(const FSteamworksVoic
 	if (Pawn && Pawn->Controller == UGameplayStatics::GetPlayerController(this, 0))
 	{
 		//testing...
-		if (Pawn->PlayerState && Pawn->PlayerState->bIsABot == false)
+		/*if (Pawn->PlayerState && Pawn->PlayerState->bIsABot == false)
 		{
 			for (TObjectIterator<USteamVoiceComponent> Itr; Itr; ++Itr)
 			{
@@ -228,7 +234,7 @@ void USteamVoiceComponent::MulticastOnVoice_Implementation(const FSteamworksVoic
 					Itr->MulticastOnVoice_Implementation(VoicePacket);
 				}
 			}
-		}
+		}*/
 		return;
 	}
 
