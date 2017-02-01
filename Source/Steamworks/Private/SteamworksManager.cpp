@@ -288,8 +288,11 @@ void USteamworksManager::Shutdown()
 		//SteamGameServer_Shutdown();
 	}
 
-	VoiceCapture->Stop();
-	VoiceCapture->Shutdown();
+	if (VoiceCapture.IsValid())
+	{
+		VoiceCapture->Stop();
+		VoiceCapture->Shutdown();
+	}
 }
 
 void USteamworksManager::Tick(float DeltaTime)
@@ -309,13 +312,13 @@ void USteamworksManager::SetVoiceRecording(bool bEnabled)
 	if (bRecordingVoice)
 	{
 
-		VoiceCapture->Start();
+		if (VoiceCapture.IsValid()) VoiceCapture->Start();
 		//SteamUser()->StartVoiceRecording();
 		//SteamFriends()->SetInGameVoiceSpeaking(SteamUser()->GetSteamID(), true);
 	}
 	else
 	{
-		VoiceCapture->Stop();
+		if (VoiceCapture.IsValid()) VoiceCapture->Stop();
 
 		//SteamUser()->StopVoiceRecording();
 		//SteamFriends()->SetInGameVoiceSpeaking(SteamUser()->GetSteamID(), false);
@@ -324,6 +327,12 @@ void USteamworksManager::SetVoiceRecording(bool bEnabled)
 
 bool USteamworksManager::GetVoice(uint8* DestBuffer, uint32& WrittenSize)
 {
+	if (!VoiceCapture.IsValid())
+	{
+		WrittenSize = 0;
+		return false;
+	}
+
 	bool bDoWork = false;
 	uint32 TotalVoiceBytes = 0;
 
