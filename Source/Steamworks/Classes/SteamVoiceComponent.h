@@ -15,7 +15,6 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FSteamOnRadioToggleSignature, bool,
 
 
 
-#define STEAMWORKS_TICK_VOICE_BUFFER_SIZE 8192
 
 
 

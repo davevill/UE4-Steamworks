@@ -3,6 +3,7 @@
 #include "SteamworksPrivatePCH.h"
 #include "SteamRadio.h"
 #include "Runtime/Engine/Classes/Sound/SoundWaveProcedural.h"
+#include "Voice.h"
 
 
 
@@ -29,7 +30,7 @@ void ASteamRadio::InitializePlaybackChannels(USoundCue* ChannelCue)
 		Channel.SoundComponent = NewObject<UAudioComponent>(this);
 
 		Channel.SoundStreaming = NewObject<USoundWaveProcedural>();
-		Channel.SoundStreaming->SampleRate = SteamUser() == nullptr ? 11025 : SteamUser()->GetVoiceOptimalSampleRate();
+		Channel.SoundStreaming->SampleRate = VOICE_SAMPLE_RATE;
 		Channel.SoundStreaming->NumChannels = 1;
 		Channel.SoundStreaming->Duration = INDEFINITELY_LOOPING_DURATION;
 		Channel.SoundStreaming->SoundGroup = SOUNDGROUP_Voice;

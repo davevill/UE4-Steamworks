@@ -7,13 +7,40 @@
 #include "UniqueNetIdSteam.h"
 #include "SteamworksGameMode.h"
 #include "LatentActions.h"
-
+#include "Runtime/Engine/Classes/Sound/SoundWaveProcedural.h"
+#include "Voice.h"
 #include "SteamItem.h"
+#include "AudioDevice.h"
 
 
 
 #define STEAMWORKS_AVATAR_SIZE 184
 #define STEAMWORKS_AVATAR_BYTE_SIZE STEAMWORKS_AVATAR_SIZE * STEAMWORKS_AVATAR_SIZE * 4
+
+
+
+
+
+static ESteamLobbyChatMemberStateChange GetUnrealEnumFromSteamSDK(EChatMemberStateChange StateChange)
+{
+	switch (StateChange)
+	{
+	case k_EChatMemberStateChangeEntered:      return ESteamLobbyChatMemberStateChange::Entered;
+	case k_EChatMemberStateChangeLeft:         return ESteamLobbyChatMemberStateChange::Left;			
+	case k_EChatMemberStateChangeDisconnected: return ESteamLobbyChatMemberStateChange::Disconnected;
+	case k_EChatMemberStateChangeKicked:       return ESteamLobbyChatMemberStateChange::Kicked;	
+	case k_EChatMemberStateChangeBanned:       return ESteamLobbyChatMemberStateChange::Banned;
+	};
+
+	//can't happen
+	ensure(false);
+	return ESteamLobbyChatMemberStateChange::Disconnected;
+}
+
+
+
+
+
 
 
 
@@ -31,6 +58,16 @@ public:
 	STEAM_CALLBACK(FSteamworksCallbacks, OnInventoryUpdate, SteamInventoryFullUpdate_t, OnInventoryUpdateCallback);
 	STEAM_CALLBACK(FSteamworksCallbacks, OnInventoryDefinitionUpdate, SteamInventoryDefinitionUpdate_t, OnInventoryDefinitionUpdateCallback);
 
+
+	// Matchmaking & lobbies
+	STEAM_CALLBACK(FSteamworksCallbacks, OnLobbyDataUpdated, LobbyDataUpdate_t, OnLobbyDataUpdatedCallback);
+	STEAM_CALLBACK(FSteamworksCallbacks, OnLobbyChatUpdated, LobbyChatUpdate_t, OnLobbyChatUpdatedCallback);
+	STEAM_CALLBACK(FSteamworksCallbacks, OnLobbyEnter, LobbyEnter_t, OnLobbyEnterCallback);
+	STEAM_CALLBACK(FSteamworksCallbacks, OnLobbyChatMsg, LobbyChatMsg_t, OnLobbyChatMsgCallback);
+
+	//P2P Networking
+	STEAM_CALLBACK(FSteamworksCallbacks, OnP2PSessionRequest, P2PSessionRequest_t, OnP2PSessionRequestCallback);
+
 	TWeakObjectPtr<USteamworksManager> Manager;
 
 	FSteamworksCallbacks(USteamworksManager* Owner) :
@@ -39,15 +76,79 @@ public:
 		OnAvatarImageLoadedCallback(this, &FSteamworksCallbacks::OnAvatarImageLoaded),
 		OnPersonaStateChangeCallback(this, &FSteamworksCallbacks::OnPersonaStateChange),
 		OnInventoryUpdateCallback(this, &FSteamworksCallbacks::OnInventoryUpdate),
-		OnInventoryDefinitionUpdateCallback(this, &FSteamworksCallbacks::OnInventoryDefinitionUpdate)
+		OnInventoryDefinitionUpdateCallback(this, &FSteamworksCallbacks::OnInventoryDefinitionUpdate),
+		OnLobbyDataUpdatedCallback(this, &FSteamworksCallbacks::OnLobbyDataUpdated),
+		OnLobbyChatUpdatedCallback(this, &FSteamworksCallbacks::OnLobbyChatUpdated),
+		OnLobbyEnterCallback(this, &FSteamworksCallbacks::OnLobbyEnter),
+		OnLobbyChatMsgCallback(this, &FSteamworksCallbacks::OnLobbyChatMsg),
+		OnP2PSessionRequestCallback(this, &FSteamworksCallbacks::OnP2PSessionRequest)
 	{
 
 	}
 
 
-	
+	CCallResult<FSteamworksCallbacks, LobbyCreated_t> SteamCallLobbyCreated;
+
+	void OnLobbyCreatedCallback(LobbyCreated_t* pLobbyCreated, bool bIOFailure)
+	{
+		if (pLobbyCreated->m_eResult == EResult::k_EResultOK)
+		{
+			ensure(Manager->LobbyInstance == nullptr);
+
+			if (Manager->LobbyInstance)
+			{
+				//Manager->LeaveLobby();
+			}
 
 
+			//Manager->CreateLobbyInstance(pLobbyCreated->m_ulSteamIDLobby);
+		}
+	}
+
+
+	/*CCallResult<FSteamworksCallbacks, LobbyEnter_t> SteamCallResultLobbyEnter;
+
+	void OnLobbyEnterCallback(LobbyEnter_t* pLobbyEnter, bool bIOFailure)
+	{
+		if (pLobbyEnter && pLobbyEnter->m_EChatRoomEnterResponse == k_EChatRoomEnterResponseSuccess)
+		{
+			CSteamID LobbyId;
+			LobbyId.SetFromUint64(pLobbyEnter->m_ulSteamIDLobby);
+
+			ensure(LobbyId.IsValid() && LobbyId.IsLobby());
+
+			Manager->CreateLobbyInstance(LobbyId);
+			Manager->OnEnterLobby.Broadcast(true);
+		}
+		else
+		{
+			Manager->OnEnterLobby.Broadcast(false);
+		}
+	}*/
+
+
+	CCallResult<FSteamworksCallbacks, LobbyMatchList_t> SteamCallResultLobbyMatchList;
+
+	void OnLobbyMatchListCallback(LobbyMatchList_t* pLobbyMatchList, bool bIOFailure)
+	{
+		Manager->LobbyList.Empty();
+
+		for (uint32 i = 0; i < pLobbyMatchList->m_nLobbiesMatching; i++)
+		{
+			FSteamLobbyInfo Info;
+
+			Info.Id = SteamMatchmaking()->GetLobbyByIndex(i);
+			Info.Name = "";
+			Info.UpdateData();
+
+			Manager->LobbyList.Add(Info);
+		}
+
+
+		Manager->bRequestingLobbyList = false;
+
+		Manager->OnLobbyListUpdated.Broadcast();
+	}
 };
 
 void FSteamworksCallbacks::OnInventoryDefinitionUpdate(SteamInventoryDefinitionUpdate_t* pData)
@@ -65,20 +166,20 @@ void FSteamworksCallbacks::OnInventoryUpdate(SteamInventoryFullUpdate_t* pData)
 
 	if (SteamInventory()->GetResultItems(pData->m_handle, nullptr, &Count))
 	{
-		ItemDetails.SetNumZeroed(Count);
+ItemDetails.SetNumZeroed(Count);
 
-		if (SteamInventory()->GetResultItems(pData->m_handle, ItemDetails.GetData(), &Count))
-		{
-			for (uint32 i = 0; i < Count; i++)
-			{
-				USteamItem* Item = NewObject<USteamItem>(Manager.Get());
-				check(Item);
+if (SteamInventory()->GetResultItems(pData->m_handle, ItemDetails.GetData(), &Count))
+{
+	for (uint32 i = 0; i < Count; i++)
+	{
+		USteamItem* Item = NewObject<USteamItem>(Manager.Get());
+		check(Item);
 
-				Item->Details = ItemDetails[i];
+		Item->Details = ItemDetails[i];
 
-				Manager->Inventory.Add(Item);
-			}
-		}
+		Manager->Inventory.Add(Item);
+	}
+}
 	}
 
 	Manager->OnInventoryUpdate.Broadcast();
@@ -127,6 +228,140 @@ void FSteamworksCallbacks::OnValidateTicket(ValidateAuthTicketResponse_t* pRespo
 	}
 }
 
+void FSteamworksCallbacks::OnLobbyDataUpdated(LobbyDataUpdate_t* pCallback)
+{
+	if (pCallback->m_bSuccess)
+	{
+		for (int32 i = 0; i < Manager->LobbyList.Num(); i++)
+		{
+			FSteamLobbyInfo& Info = Manager->LobbyList[i];
+
+			if (Info.Id == pCallback->m_ulSteamIDLobby)
+			{
+				Info.UpdateData(true);
+				break;
+			}
+		}
+
+		USteamLobby* Lobby = Manager->LobbyInstance;
+
+		if (Lobby && Lobby->Info.Id == pCallback->m_ulSteamIDLobby)
+		{
+			Lobby->Info.UpdateData(true);
+			Lobby->UpdateMemberList();
+			Lobby->OnLobbyDataUpdated();
+			Manager->OnLobbyUpdated.Broadcast();
+		}
+
+	}
+}
+
+void FSteamworksCallbacks::OnLobbyChatUpdated(LobbyChatUpdate_t* pCallback)
+{
+	if (pCallback)
+	{
+		USteamLobby* SteamLobby = Manager->GetLobbyInstance();
+
+
+		CSteamID LobbyId;
+		LobbyId.SetFromUint64(pCallback->m_ulSteamIDLobby);
+
+		if (SteamLobby && SteamLobby->Info.Id == LobbyId)
+		{
+			SteamLobby->UpdateMemberList();	
+		}
+
+		if (SteamUser()->GetSteamID() == pCallback->m_ulSteamIDUserChanged)
+		{
+			if (pCallback->m_rgfChatMemberStateChange != k_EChatMemberStateChangeEntered)
+			{
+				Manager->OnLeftLobby.Broadcast(GetUnrealEnumFromSteamSDK(EChatMemberStateChange(pCallback->m_rgfChatMemberStateChange)));
+			}
+			
+		}
+		else
+		{
+			//TODO report other user's state change
+		}
+
+	}
+}
+
+void FSteamworksCallbacks::OnLobbyEnter(LobbyEnter_t* pLobbyEnter)
+{
+	if (pLobbyEnter && pLobbyEnter->m_EChatRoomEnterResponse == k_EChatRoomEnterResponseSuccess)
+	{
+		CSteamID LobbyId;
+		LobbyId.SetFromUint64(pLobbyEnter->m_ulSteamIDLobby);
+
+		ensure(LobbyId.IsValid() && LobbyId.IsLobby());
+
+		Manager->CreateLobbyInstance(LobbyId);
+		Manager->OnEnterLobby.Broadcast(false);
+	}
+	else
+	{
+		Manager->OnEnterLobby.Broadcast(true);
+	}
+}
+
+void FSteamworksCallbacks::OnLobbyChatMsg(LobbyChatMsg_t* pCallback)
+{
+	if (pCallback)
+	{
+		USteamLobby* Lobby = Manager->LobbyInstance;
+
+		if (Lobby && Lobby->Info.Id == pCallback->m_ulSteamIDLobby)
+		{
+			CSteamID SenderId;
+
+			TArray<char, TInlineAllocator<256>> Buffer;
+			Buffer.SetNum(256);
+
+			EChatEntryType ChatEntryType;
+
+			int WrittenSize = SteamMatchmaking()->GetLobbyChatEntry(pCallback->m_ulSteamIDLobby, pCallback->m_iChatID, &SenderId, Buffer.GetData(), 256, &ChatEntryType);
+
+			Buffer.SetNum(WrittenSize, false);
+
+			Lobby->OnLobbyChatMsg(SenderId, Buffer);
+
+		}
+	}
+}
+
+void FSteamworksCallbacks::OnP2PSessionRequest(P2PSessionRequest_t* pCallback)
+{
+	USteamLobby* Lobby = Manager->LobbyInstance;
+
+	if (Lobby)
+	{
+		for (auto Member : Lobby->Members)
+		{
+			if (Member.UserId == pCallback->m_steamIDRemote)
+			{
+				SteamNetworking()->AcceptP2PSessionWithUser(pCallback->m_steamIDRemote);
+				break;
+			}
+		}
+	}
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 USteamworksManager::USteamworksManager(const FObjectInitializer& ObjectInitializer) : 
 	Super(ObjectInitializer)
@@ -148,6 +383,11 @@ USteamworksManager::USteamworksManager(const FObjectInitializer& ObjectInitializ
 	CompressedData.AddUninitialized(MaxCompressedDataSize);
 	UncompressedData.AddUninitialized(MaxUncompressedDataSize);
 	Remainder.AddUninitialized(MaxRemainderSize);
+
+
+	bRequestingLobbyList = false;
+
+	LobbyClass = USteamLobby::StaticClass();
 }
 
 void USteamworksManager::Init()
@@ -244,7 +484,7 @@ void USteamworksManager::Init()
 	if (SteamInventory())
 	{
 		//load the definitions for usage in client and server usage
-		SteamInventory()->LoadItemDefinitions();
+SteamInventory()->LoadItemDefinitions();
 	}
 
 	bRecordingVoice = false;
@@ -300,6 +540,11 @@ void USteamworksManager::Tick(float DeltaTime)
 	if (bInitialized)
 	{
 		SteamAPI_RunCallbacks();
+
+		if (LobbyInstance)
+		{
+			LobbyInstance->Tick(DeltaTime);
+		}
 	}
 }
 
@@ -327,11 +572,24 @@ void USteamworksManager::SetVoiceRecording(bool bEnabled)
 
 bool USteamworksManager::GetVoice(uint8* DestBuffer, uint32& WrittenSize)
 {
+	//if we have a lobby instance and has voice enabled, ignore all calls, we will foward it to the lobby instead
+	if (LobbyInstance && LobbyInstance->IsVoiceChatEnabled())
+	{
+		WrittenSize = 0;
+		return false;	
+	}
+
+	return GetVoice_Implementation(DestBuffer, WrittenSize);
+}
+
+bool USteamworksManager::GetVoice_Implementation(uint8* DestBuffer, uint32& WrittenSize)
+{
 	if (!VoiceCapture.IsValid())
 	{
 		WrittenSize = 0;
 		return false;
 	}
+
 
 	bool bDoWork = false;
 	uint32 TotalVoiceBytes = 0;
@@ -524,3 +782,140 @@ UTexture2D* USteamworksManager::GetAvatarBySteamId(CSteamID SteamId)
 	return AvatarTexture;
 }
 
+
+
+
+#define STEAMWORKS_CHECK_MATCHMAKING() if (!SteamMatchmaking()) { UE_LOG(SteamworksLog, Error, TEXT("SteamMatchmaking is null")); ensure(false); return; }
+
+void USteamworksManager::RequestLobbyList()
+{
+	if (bRequestingLobbyList) return;
+
+	SteamAPICall_t hSteamAPICall = SteamMatchmaking()->RequestLobbyList();
+
+	Callbacks->SteamCallResultLobbyMatchList.Set(hSteamAPICall, Callbacks, &FSteamworksCallbacks::OnLobbyMatchListCallback);
+
+	bRequestingLobbyList = true;
+}
+
+static ELobbyComparison GetSteamSDKEnum(ESteamLobbyComparison ComparisonType)
+{
+	switch (ComparisonType)
+	{
+	case ESteamLobbyComparison::EqualToOrLessThan:    return k_ELobbyComparisonEqualToOrLessThan;
+	case ESteamLobbyComparison::LessThan:             return k_ELobbyComparisonLessThan;
+	case ESteamLobbyComparison::Equal:                return k_ELobbyComparisonEqual;
+	case ESteamLobbyComparison::GreaterThan:          return k_ELobbyComparisonGreaterThan;
+	case ESteamLobbyComparison::EqualToOrGreaterThan: return k_ELobbyComparisonEqualToOrGreaterThan;
+	case ESteamLobbyComparison::NotEqual:             return k_ELobbyComparisonNotEqual;
+	};
+
+	ensure(false);
+	return k_ELobbyComparisonEqual;
+};
+
+
+static ELobbyDistanceFilter GetSteamSDKEnum(ESteamLobbyDistanceFilter Filter)
+{
+	switch (Filter)
+	{
+	case ESteamLobbyDistanceFilter::Close: return k_ELobbyDistanceFilterClose;
+	case ESteamLobbyDistanceFilter::Default: return k_ELobbyDistanceFilterDefault;
+	case ESteamLobbyDistanceFilter::Far: return k_ELobbyDistanceFilterFar;
+	case ESteamLobbyDistanceFilter::Worldwide: return k_ELobbyDistanceFilterWorldwide;
+	};
+
+	return k_ELobbyDistanceFilterDefault;
+}
+
+void USteamworksManager::AddRequestLobbyListStringFilter(const FString& KeyToMatch, const FString& ValueToMatch, ESteamLobbyComparison ComparisonType)
+{
+	STEAMWORKS_CHECK_MATCHMAKING();
+	SteamMatchmaking()->AddRequestLobbyListStringFilter(TCHAR_TO_ANSI(*KeyToMatch), TCHAR_TO_ANSI(*ValueToMatch), GetSteamSDKEnum(ComparisonType));
+}
+
+void USteamworksManager::AddRequestLobbyListNumericalFilter(const FString& KeyToMatch, int32 ValueToMatch, ESteamLobbyComparison ComparisonType)
+{
+	STEAMWORKS_CHECK_MATCHMAKING();
+	SteamMatchmaking()->AddRequestLobbyListNumericalFilter(TCHAR_TO_ANSI(*KeyToMatch), ValueToMatch, GetSteamSDKEnum(ComparisonType));
+}
+
+void USteamworksManager::AddRequestLobbyListNearValueFilter(const FString& KeyToMatch, int32 ValueToBeCloseTo)
+{
+	STEAMWORKS_CHECK_MATCHMAKING();
+	SteamMatchmaking()->AddRequestLobbyListNearValueFilter(TCHAR_TO_ANSI(*KeyToMatch), ValueToBeCloseTo);
+}
+
+void USteamworksManager::AddRequestLobbyListFilterSlotsAvailable(int32 SlotsAvailable)
+{
+	STEAMWORKS_CHECK_MATCHMAKING();
+	SteamMatchmaking()->AddRequestLobbyListFilterSlotsAvailable(SlotsAvailable);
+}
+
+void USteamworksManager::AddRequestLobbyListDistanceFilter(ESteamLobbyDistanceFilter DistanceFilter)
+{
+	STEAMWORKS_CHECK_MATCHMAKING();
+	SteamMatchmaking()->AddRequestLobbyListDistanceFilter(GetSteamSDKEnum(DistanceFilter));
+}
+
+void USteamworksManager::CreateLobbyInstance(CSteamID LobbyId)
+{
+	ensure(LobbyInstance == nullptr);
+
+	UClass* Class = LobbyClass;
+
+	if (Class == nullptr)
+	{
+		Class = USteamLobby::StaticClass();
+	}
+
+	LobbyInstance = NewObject<USteamLobby>(this, Class, "LobbyInstance");
+	check(LobbyInstance);
+
+	LobbyInstance->Info.Id = LobbyId;
+	LobbyInstance->Info.UpdateData(true);
+
+	LobbyInstance->Manager = this;
+	LobbyInstance->Initialize();
+}
+
+void USteamworksManager::JoinLobby(FSteamLobbyInfo LobbyInfo)
+{
+	STEAMWORKS_CHECK_MATCHMAKING();
+
+	if (LobbyInstance)
+	{
+		LeaveLobby();
+	}
+
+	ensure(LobbyInstance == nullptr);
+
+	SteamMatchmaking()->JoinLobby(LobbyInfo.Id);
+}
+
+void USteamworksManager::LeaveLobby()
+{
+	STEAMWORKS_CHECK_MATCHMAKING();
+
+	ensure(LobbyInstance);
+
+	if (LobbyInstance)
+	{
+		SteamMatchmaking()->LeaveLobby(LobbyInstance->Info.Id);
+
+		LobbyInstance->Shutdown();
+		LobbyInstance = nullptr;
+
+		//Non standard on steam, but we got no feedback whether we left or not
+		OnLeftLobby.Broadcast(ESteamLobbyChatMemberStateChange::Left);
+	}
+}
+
+void USteamworksManager::CreateLobby(int32 LobbyMemberLimit, bool bPublic)
+{
+	STEAMWORKS_CHECK_MATCHMAKING();
+
+	SteamAPICall_t hSteamAPICall = SteamMatchmaking()->CreateLobby(bPublic ? ELobbyType::k_ELobbyTypePublic : ELobbyType::k_ELobbyTypeFriendsOnly, LobbyMemberLimit);
+
+	Callbacks->SteamCallLobbyCreated.Set(hSteamAPICall, Callbacks, &FSteamworksCallbacks::OnLobbyCreatedCallback);
+}
