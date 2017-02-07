@@ -128,6 +128,11 @@ class STEAMWORKS_API USteamLobby : public UObject
 	UPROPERTY()
 	float LocalUserTalkTimer;
 
+
+protected:
+
+	CSteamID LocalUserId;
+
 public:
 
 

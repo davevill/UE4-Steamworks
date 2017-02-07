@@ -15,6 +15,7 @@
 /** URL Prefix when using Null socket connection */
 #define NULL_URL_PREFIX TEXT("Steam.")
 
+
 /** pre-pended to all NULL logging */
 #undef ONLINE_LOG_PREFIX
 #define ONLINE_LOG_PREFIX TEXT("Steam: ")

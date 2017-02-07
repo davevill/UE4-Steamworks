@@ -271,7 +271,9 @@ void FSteamworksCallbacks::OnLobbyChatUpdated(LobbyChatUpdate_t* pCallback)
 			SteamLobby->UpdateMemberList();	
 		}
 
-		if (SteamUser()->GetSteamID() == pCallback->m_ulSteamIDUserChanged)
+		static CSteamID LocalUserId = SteamUser()->GetSteamID();
+
+		if (LocalUserId == pCallback->m_ulSteamIDUserChanged)
 		{
 			if (pCallback->m_rgfChatMemberStateChange != k_EChatMemberStateChangeEntered)
 			{

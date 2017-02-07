@@ -22,7 +22,7 @@
 
 
 
-#define STEAMLOBBY_UPDATE_INTERVAL 1.f
+#define STEAMLOBBY_UPDATE_INTERVAL 10.f
 
 
 
@@ -55,6 +55,8 @@ void USteamLobby::SetVoiceChat(bool bEnabled)
 
 void USteamLobby::Initialize()
 {
+	LocalUserId = SteamUser()->GetSteamID();
+
 	check(Manager.IsValid());
 	UpdateTimer = 0.f;
 	UpdateMemberList();
@@ -101,7 +103,7 @@ bool USteamLobby::IsLocalUserOwner() const
 
 	ensure(OwnerId.IsValid());
 
-	if (OwnerId == SteamUser()->GetSteamID())
+	if (OwnerId == LocalUserId)
 	{
 		return true;
 	}
@@ -247,7 +249,7 @@ bool USteamLobby::IsMemberTalking(int32 Index) const
 
 	if (Member)
 	{
-		if (Member->UserId == SteamUser()->GetSteamID())
+		if (Member->UserId == LocalUserId)
 		{
 			return LocalUserTalkTimer > 0.f;	
 		}
@@ -291,7 +293,7 @@ void USteamLobby::Tick(float DeltaTime)
 			for (auto Member : Members)
 			{
 				//Dont send to myself, duh
-				if (Member.UserId == SteamUser()->GetSteamID()) continue;
+				if (Member.UserId == LocalUserId) continue;
 
 				SteamNetworking()->SendP2PPacket(Member.UserId, CompressedVoiceBuffer.GetData(), Size, k_EP2PSendReliableWithBuffering, STEAMWORKS_LOBBY_VOICE_CHANNEL);
 			}
