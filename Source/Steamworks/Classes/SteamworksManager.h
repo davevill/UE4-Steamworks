@@ -196,6 +196,7 @@ protected:
 
 
 	bool bRequestingLobbyList;
+	bool bRequestLobbyData;
 
 
 	void CreateLobbyInstance(CSteamID LobbyId);
@@ -244,7 +245,7 @@ public:
 
 	/** Request lobby list, filters must be re-set/set in advance */
 	UFUNCTION(BlueprintCallable, Category="Steamworks")
-	void RequestLobbyList();
+	void RequestLobbyList(bool bWithData = false);
 
 
 

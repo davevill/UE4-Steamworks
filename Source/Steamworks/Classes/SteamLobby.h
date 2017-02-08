@@ -48,9 +48,11 @@ public:
 	UPROPERTY(BlueprintReadOnly)
 	TArray<FSteamLobbyDataEntry> Metadata;
 
+	bool bDataRequested;
+
 	FSteamLobbyInfo()
 	{
-
+		bDataRequested = false;
 	}
 
 
@@ -148,6 +150,11 @@ public:
 
 	UPROPERTY(BlueprintReadWrite, Category="Steam Lobby")
 	float VoiceVolume;
+
+	/** Disables voice chat and other Tick related task that could slow down the gameplay
+	  * Usually this should be enabled when the lobby transitions to playing mode */
+	UPROPERTY(BlueprintReadWrite, Category="Steam Lobby")
+	bool bLightModeEnabled;
 
 
 	USteamLobby();

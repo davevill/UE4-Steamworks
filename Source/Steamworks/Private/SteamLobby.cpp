@@ -285,60 +285,67 @@ void USteamLobby::Tick(float DeltaTime)
 
 		uint32 Size = STEAMWORKS_TICK_VOICE_BUFFER_SIZE;
 
+		//Get dequeing voice data even if lightmode is enabled
 		if (Manager->GetVoice_Implementation(CompressedVoiceBuffer.GetData(), Size))
 		{
-			LocalUserTalkTimer = 1.f;
-			CompressedVoiceBuffer.SetNum(Size, false);
-
-			for (auto Member : Members)
+			if (bLightModeEnabled == false)
 			{
-				//Dont send to myself, duh
-				if (Member.UserId == LocalUserId) continue;
+				LocalUserTalkTimer = 1.f;
+				CompressedVoiceBuffer.SetNum(Size, false);
 
-				SteamNetworking()->SendP2PPacket(Member.UserId, CompressedVoiceBuffer.GetData(), Size, k_EP2PSendReliableWithBuffering, STEAMWORKS_LOBBY_VOICE_CHANNEL);
+				for (auto Member : Members)
+				{
+					//Dont send to myself, duh
+					if (Member.UserId == LocalUserId) continue;
+
+					SteamNetworking()->SendP2PPacket(Member.UserId, CompressedVoiceBuffer.GetData(), Size, k_EP2PSendReliableWithBuffering, STEAMWORKS_LOBBY_VOICE_CHANNEL);
+				}
 			}
 		}	
 	}
 
-	uint32 PacketSize = 0;
-
-	if (SteamNetworking()->IsP2PPacketAvailable(&PacketSize, STEAMWORKS_LOBBY_VOICE_CHANNEL))
+	if (bLightModeEnabled == false)
 	{
-		CompressedVoiceBuffer.SetNumUninitialized(PacketSize, false);
+		uint32 PacketSize = 0;
 
-		CSteamID RemoteUser;
-
-		if (SteamNetworking()->ReadP2PPacket(CompressedVoiceBuffer.GetData(), PacketSize, &PacketSize, &RemoteUser, STEAMWORKS_LOBBY_VOICE_CHANNEL))
+		while (SteamNetworking()->IsP2PPacketAvailable(&PacketSize, STEAMWORKS_LOBBY_VOICE_CHANNEL))
 		{
-			RawVoiceBuffer.SetNumUninitialized(STEAMWORKS_RAW_VOICE_BUFFER_SIZE, false);
+			CompressedVoiceBuffer.SetNumUninitialized(PacketSize, false);
 
-			uint32 BufferSize = STEAMWORKS_RAW_VOICE_BUFFER_SIZE;
+			CSteamID RemoteUser;
 
-			if (PacketSize > 0 && Manager->DecompressVoice(CompressedVoiceBuffer.GetData(), PacketSize, RawVoiceBuffer.GetData(), BufferSize))
+			if (SteamNetworking()->ReadP2PPacket(CompressedVoiceBuffer.GetData(), PacketSize, &PacketSize, &RemoteUser, STEAMWORKS_LOBBY_VOICE_CHANNEL))
 			{
-				RawVoiceBuffer.SetNum(BufferSize, false);
+				RawVoiceBuffer.SetNumUninitialized(STEAMWORKS_RAW_VOICE_BUFFER_SIZE, false);
 
-				FSteamLobbyVoiceBuffer& VoiceBuffer = GetVoiceBuffer(RemoteUser);
-				VoiceBuffer.TalkTimer = 1.f;
+				uint32 BufferSize = STEAMWORKS_RAW_VOICE_BUFFER_SIZE;
 
-				USoundWaveProcedural* SoundStreaming = CastChecked<USoundWaveProcedural>(VoiceBuffer.AudioComponent->Sound);
+				if (PacketSize > 0 && Manager->DecompressVoice(CompressedVoiceBuffer.GetData(), PacketSize, RawVoiceBuffer.GetData(), BufferSize))
+				{
+					RawVoiceBuffer.SetNum(BufferSize, false);
 
-				SoundStreaming->QueueAudio(RawVoiceBuffer.GetData(), BufferSize);
+					FSteamLobbyVoiceBuffer& VoiceBuffer = GetVoiceBuffer(RemoteUser);
+					VoiceBuffer.TalkTimer = 1.f;
 
-				if (VoiceBuffer.AudioComponent->IsPlaying() == false) VoiceBuffer.AudioComponent->Play();			
+					USoundWaveProcedural* SoundStreaming = CastChecked<USoundWaveProcedural>(VoiceBuffer.AudioComponent->Sound);
+
+					SoundStreaming->QueueAudio(RawVoiceBuffer.GetData(), BufferSize);
+
+					if (VoiceBuffer.AudioComponent->IsPlaying() == false) VoiceBuffer.AudioComponent->Play();			
+				}
 			}
 		}
+
+		for (int32 i = 0; i < VoiceBuffers.Num(); i++)
+		{
+			VoiceBuffers[i].TalkTimer -= DeltaTime;
+
+			if (VoiceBuffers[i].TalkTimer < 0.f) VoiceBuffers[i].TalkTimer = 0.f;
+		}
+
+		LocalUserTalkTimer -= DeltaTime;
+		if (LocalUserTalkTimer < 0.f) LocalUserTalkTimer = 0.f;
 	}
-
-	for (int32 i = 0; i < VoiceBuffers.Num(); i++)
-	{
-		VoiceBuffers[i].TalkTimer -= DeltaTime;
-
-		if (VoiceBuffers[i].TalkTimer < 0.f) VoiceBuffers[i].TalkTimer = 0.f;
-	}
-
-	LocalUserTalkTimer -= DeltaTime;
-	if (LocalUserTalkTimer < 0.f) LocalUserTalkTimer = 0.f;
 }
 
 

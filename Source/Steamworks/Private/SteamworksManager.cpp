@@ -141,13 +141,28 @@ public:
 			Info.Name = "";
 			Info.UpdateData();
 
+
+			if (Manager->bRequestLobbyData)
+			{
+				if (!SteamMatchmaking()->RequestLobbyData(Info.Id))
+				{
+					Info.bDataRequested = true;
+				}
+			}
+
 			Manager->LobbyList.Add(Info);
 		}
 
 
-		Manager->bRequestingLobbyList = false;
 
-		Manager->OnLobbyListUpdated.Broadcast();
+		if (!Manager->bRequestLobbyData || Manager->LobbyList.Num() == 0)
+		{
+			//We are done here
+			Manager->bRequestingLobbyList = false;
+			Manager->bRequestLobbyData = false;
+			Manager->OnLobbyListUpdated.Broadcast();
+		}
+
 	}
 };
 
@@ -230,6 +245,8 @@ void FSteamworksCallbacks::OnValidateTicket(ValidateAuthTicketResponse_t* pRespo
 
 void FSteamworksCallbacks::OnLobbyDataUpdated(LobbyDataUpdate_t* pCallback)
 {
+	int32 NumRequested = 0;
+
 	if (pCallback->m_bSuccess)
 	{
 		for (int32 i = 0; i < Manager->LobbyList.Num(); i++)
@@ -238,8 +255,17 @@ void FSteamworksCallbacks::OnLobbyDataUpdated(LobbyDataUpdate_t* pCallback)
 
 			if (Info.Id == pCallback->m_ulSteamIDLobby)
 			{
+				if (Manager->bRequestingLobbyList && Manager->bRequestLobbyData)
+				{
+					Info.bDataRequested = true;
+				}
+
 				Info.UpdateData(true);
-				break;
+			}
+
+			if (Info.bDataRequested)
+			{
+				NumRequested++;
 			}
 		}
 
@@ -253,6 +279,32 @@ void FSteamworksCallbacks::OnLobbyDataUpdated(LobbyDataUpdate_t* pCallback)
 			Manager->OnLobbyUpdated.Broadcast();
 		}
 
+	}
+	else
+	{
+		if (Manager->bRequestingLobbyList && Manager->bRequestLobbyData)
+		{
+			for (int32 i = 0; i < Manager->LobbyList.Num(); i++)
+			{
+				if (Manager->LobbyList[i].Id == pCallback->m_ulSteamIDLobby)
+				{
+					Manager->LobbyList[i].bDataRequested = true;
+				}
+
+				if (Manager->LobbyList[i].bDataRequested)
+				{
+					NumRequested++;
+				}
+			}
+		}
+	}
+
+	if (Manager->bRequestingLobbyList && Manager->bRequestLobbyData && NumRequested == Manager->LobbyList.Num())
+	{
+		//We are done here
+		Manager->bRequestingLobbyList = false;
+		Manager->bRequestLobbyData = false;
+		Manager->OnLobbyListUpdated.Broadcast();
 	}
 }
 
@@ -486,7 +538,7 @@ void USteamworksManager::Init()
 	if (SteamInventory())
 	{
 		//load the definitions for usage in client and server usage
-SteamInventory()->LoadItemDefinitions();
+		SteamInventory()->LoadItemDefinitions();
 	}
 
 	bRecordingVoice = false;
@@ -546,7 +598,7 @@ void USteamworksManager::Tick(float DeltaTime)
 		if (LobbyInstance)
 		{
 			LobbyInstance->Tick(DeltaTime);
-		}
+		}	
 	}
 }
 
@@ -789,7 +841,7 @@ UTexture2D* USteamworksManager::GetAvatarBySteamId(CSteamID SteamId)
 
 #define STEAMWORKS_CHECK_MATCHMAKING() if (!SteamMatchmaking()) { UE_LOG(SteamworksLog, Error, TEXT("SteamMatchmaking is null")); ensure(false); return; }
 
-void USteamworksManager::RequestLobbyList()
+void USteamworksManager::RequestLobbyList(bool bWithData)
 {
 	if (bRequestingLobbyList) return;
 
@@ -798,6 +850,7 @@ void USteamworksManager::RequestLobbyList()
 	Callbacks->SteamCallResultLobbyMatchList.Set(hSteamAPICall, Callbacks, &FSteamworksCallbacks::OnLobbyMatchListCallback);
 
 	bRequestingLobbyList = true;
+	bRequestLobbyData = bWithData;
 }
 
 static ELobbyComparison GetSteamSDKEnum(ESteamLobbyComparison ComparisonType)
