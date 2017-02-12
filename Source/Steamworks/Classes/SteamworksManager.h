@@ -86,6 +86,9 @@ class STEAMWORKS_API USteamworksManager : public UObject, public FTickableGameOb
 	int32 LastRemainderSize;
 
 
+	UFUNCTION()
+	void OnPublicIpAddressResolved(const FString& IpAddress);
+
 protected:
 
 	bool bInitialized;
@@ -118,6 +121,10 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category="Steamworks")
 	TArray<class USteamItem*> Inventory;
 
+
+	/** The public ip address of this machine */
+	UPROPERTY(BlueprintReadOnly, Category="Steamworks")
+	FString PublicIpAddress;
 
 
 	virtual void Tick(float DeltaTime) override;

@@ -448,7 +448,7 @@ void USteamworksManager::Init()
 {
 	GameInstance = Cast<UGameInstance>(GetOuter());
 
-	/*FHttpModule* HTTP = &FHttpModule::Get();
+	FHttpModule* HTTP = &FHttpModule::Get();
 
 	if (HTTP && HTTP->IsHttpEnabled())
 	{
@@ -461,20 +461,20 @@ void USteamworksManager::Init()
 		Request->SetHeader("User-Agent", "SteamworksUnreal/1.0");
 		Request->SetHeader("Content-Type", "text/html");
 
-		TWeakObjectPtr<USteamworksGameInstance> Instance = this;
+		TWeakObjectPtr<USteamworksManager> Instance = this;
 
 		Request->OnProcessRequestComplete().BindLambda(
 			[=](FHttpRequestPtr Request, FHttpResponsePtr Response, bool bSucceeded)
 			{
 				if (bSucceeded && Instance.IsValid())
 				{
-					Instance->OnPublicAddressResolved(Response->GetContentAsString());
+					Instance->OnPublicIpAddressResolved(Response->GetContentAsString());
 				}
 			}
 		);
 
 		Request->ProcessRequest();
-	}*/
+	}
 
 	if (GameInstance)
 	{
@@ -973,4 +973,9 @@ void USteamworksManager::CreateLobby(int32 LobbyMemberLimit, bool bPublic)
 	SteamAPICall_t hSteamAPICall = SteamMatchmaking()->CreateLobby(bPublic ? ELobbyType::k_ELobbyTypePublic : ELobbyType::k_ELobbyTypeFriendsOnly, LobbyMemberLimit);
 
 	Callbacks->SteamCallLobbyCreated.Set(hSteamAPICall, Callbacks, &FSteamworksCallbacks::OnLobbyCreatedCallback);
+}
+
+void USteamworksManager::OnPublicIpAddressResolved(const FString& IpAddress)
+{
+	PublicIpAddress = IpAddress;
 }

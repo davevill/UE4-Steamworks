@@ -327,11 +327,29 @@ void USteamLobby::Tick(float DeltaTime)
 					FSteamLobbyVoiceBuffer& VoiceBuffer = GetVoiceBuffer(RemoteUser);
 					VoiceBuffer.TalkTimer = 1.f;
 
-					USoundWaveProcedural* SoundStreaming = CastChecked<USoundWaveProcedural>(VoiceBuffer.AudioComponent->Sound);
+					bool bClearBuffers = true;
 
-					SoundStreaming->QueueAudio(RawVoiceBuffer.GetData(), BufferSize);
+					if (VoiceBuffer.AudioComponent != nullptr && VoiceBuffer.AudioComponent->IsPendingKill() == false)
+					{
+						if (VoiceBuffer.AudioComponent->Sound)
+						{
+							USoundWaveProcedural* SoundStreaming = CastChecked<USoundWaveProcedural>(VoiceBuffer.AudioComponent->Sound);
 
-					if (VoiceBuffer.AudioComponent->IsPlaying() == false) VoiceBuffer.AudioComponent->Play();			
+							SoundStreaming->QueueAudio(RawVoiceBuffer.GetData(), BufferSize);
+
+							if (VoiceBuffer.AudioComponent->IsPlaying() == false) VoiceBuffer.AudioComponent->Play();			
+
+							bClearBuffers = false;
+						}
+					}
+					
+
+					if (bClearBuffers)
+					{
+						VoiceBuffers.Empty();
+					}
+
+
 				}
 			}
 		}
