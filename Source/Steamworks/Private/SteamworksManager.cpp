@@ -100,7 +100,6 @@ public:
 				//Manager->LeaveLobby();
 			}
 
-
 			//Manager->CreateLobbyInstance(pLobbyCreated->m_ulSteamIDLobby);
 		}
 	}
@@ -152,8 +151,6 @@ public:
 
 			Manager->LobbyList.Add(Info);
 		}
-
-
 
 		if (!Manager->bRequestLobbyData || Manager->LobbyList.Num() == 0)
 		{
@@ -843,7 +840,7 @@ UTexture2D* USteamworksManager::GetAvatarBySteamId(CSteamID SteamId)
 
 void USteamworksManager::RequestLobbyList(bool bWithData)
 {
-	if (bRequestingLobbyList) return;
+	if (bRequestingLobbyList || SteamMatchmaking() == nullptr) return;
 
 	SteamAPICall_t hSteamAPICall = SteamMatchmaking()->RequestLobbyList();
 

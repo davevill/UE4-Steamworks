@@ -22,7 +22,7 @@
 
 
 
-#define STEAMLOBBY_UPDATE_INTERVAL 10.f
+#define STEAMLOBBY_UPDATE_INTERVAL 5.f
 
 
 
@@ -31,7 +31,7 @@ USteamLobby::USteamLobby()
 	bVoiceChatEnabled = false;
 
 	VoiceVolume = 4.f;
-
+	MemberLimit = 0;
 }
 
 void USteamLobby::SetVoiceChat(bool bEnabled)
@@ -67,6 +67,17 @@ void USteamLobby::Shutdown()
 
 }
 
+void USteamLobby::OnLobbyDataUpdated()
+{
+	check(SteamMatchmaking());
+	check(IsInGameThread());
+
+	//We update the data here, to avoid any potential deadlock issue
+	MemberLimit = SteamMatchmaking()->GetLobbyMemberLimit(Info.Id);
+
+	bLocalUserOwner = IsLocalUserOwner();
+}
+
 void USteamLobby::UpdateMemberList()
 {
 	check(SteamMatchmaking());
@@ -97,46 +108,65 @@ void USteamLobby::UpdateMemberList()
 
 bool USteamLobby::IsLocalUserOwner() const
 {
-	check(SteamMatchmaking());
+	ensure(IsInGameThread());
 
-	CSteamID OwnerId = SteamMatchmaking()->GetLobbyOwner(Info.Id);
-
-	ensure(OwnerId.IsValid());
-
-	if (OwnerId == LocalUserId)
+	//We can only do this in the render thread
+	if (IsInGameThread())
 	{
-		return true;
+		check(SteamMatchmaking());
+
+		CSteamID OwnerId = SteamMatchmaking()->GetLobbyOwner(Info.Id);
+
+		ensure(OwnerId.IsValid());
+
+		if (OwnerId == LocalUserId)
+		{
+			return true;
+		}
+
+		return false;
 	}
 
-	return false;
+	//Fallback to the cached value
+	return bLocalUserOwner;
+}
+
+void USteamLobby::InviteFriends()
+{
+	if (SteamFriends() == nullptr) return;
+	SteamFriends()->ActivateGameOverlay("LobbyInvite");
 }
 
 void USteamLobby::SetLobbyData(const FString& Key, const FString& Value)
 {
+	ensure(IsInGameThread());
 	check(SteamMatchmaking());
 	SteamMatchmaking()->SetLobbyData(Info.Id, TCHAR_TO_ANSI(*Key), TCHAR_TO_ANSI(*Value));
 }
 
 FString USteamLobby::GetLobbyData(const FString& Key) const
 {
+	ensure(IsInGameThread());
 	check(SteamMatchmaking());
 	return SteamMatchmaking()->GetLobbyData(Info.Id, TCHAR_TO_ANSI(*Key));
 }
 
 int32 USteamLobby::GetNumLobbyMembers() const
 {
+	ensure(IsInGameThread());
 	check(SteamMatchmaking());
 	return SteamMatchmaking()->GetNumLobbyMembers(Info.Id);
 }
 
 int32 USteamLobby::GetLobbyMemberLimit() const
 {
-	check(SteamMatchmaking());
-	return SteamMatchmaking()->GetLobbyMemberLimit(Info.Id);
+	ensure(IsInGameThread());
+	return MemberLimit;
 }
 
 void USteamLobby::SetLobbyMemberLimit(int32 MemberLimit)
 {
+	ensure(IsInGameThread());
 	check(SteamMatchmaking());
 	SteamMatchmaking()->SetLobbyMemberLimit(Info.Id, MemberLimit);
 
@@ -145,6 +175,7 @@ void USteamLobby::SetLobbyMemberLimit(int32 MemberLimit)
 
 FString USteamLobby::GetMemberData(int32 Index, const FString& Key) const
 {
+	ensure(IsInGameThread());
 	check(SteamMatchmaking());
 
 	const FSteamLobbyMember* Member = GetMemberByIndex(Index);
@@ -159,6 +190,7 @@ FString USteamLobby::GetMemberData(int32 Index, const FString& Key) const
 
 void USteamLobby::SetMemberData(const FString& Key, const FString& Value)
 {
+	ensure(IsInGameThread());
 	check(SteamMatchmaking());
 
 	SteamMatchmaking()->SetLobbyMemberData(Info.Id, TCHAR_TO_ANSI(*Key), TCHAR_TO_ANSI(*Value));
@@ -266,13 +298,30 @@ bool USteamLobby::IsMemberTalking(int32 Index) const
 	return false;
 }
 
+void USteamLobby::SetLobbyType(ESteamLobbyType Type)
+{
+	ELobbyType LobbyType = k_ELobbyTypePublic;
+
+	switch (Type)
+	{
+	case ESteamLobbyType::FriendsOnly: LobbyType = k_ELobbyTypeFriendsOnly; break;
+	case ESteamLobbyType::Invisible:   LobbyType = k_ELobbyTypeInvisible; break;
+	case ESteamLobbyType::Private:     LobbyType = k_ELobbyTypePrivate; break;
+	};
+
+	SteamMatchmaking()->SetLobbyType(Info.Id, LobbyType);
+}
+
 void USteamLobby::Tick(float DeltaTime)
 {
+	ensure(IsInGameThread());
+
 	UpdateTimer += DeltaTime;
 
 	if (UpdateTimer > STEAMLOBBY_UPDATE_INTERVAL)
 	{
-		UpdateTimer = 0.f;	
+		UpdateTimer = 0.f;
+		OnLobbyDataUpdated();
 		OnLightTick();
 	}
 
@@ -365,11 +414,6 @@ void USteamLobby::Tick(float DeltaTime)
 		if (LocalUserTalkTimer < 0.f) LocalUserTalkTimer = 0.f;
 	}
 }
-
-
-
-
-
 
 void FSteamLobbyInfo::UpdateData(bool bPassive)
 {

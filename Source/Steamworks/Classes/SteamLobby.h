@@ -13,9 +13,14 @@
 
 
 
-
-
-
+UENUM(BlueprintType)
+enum ESteamLobbyType
+{
+	Private,
+	FriendsOnly,
+	Public,
+	Invisible
+};
 
 
 
@@ -46,6 +51,9 @@ public:
 	FString Name;
 
 	UPROPERTY(BlueprintReadOnly)
+	bool bFriend;
+
+	UPROPERTY(BlueprintReadOnly)
 	TArray<FSteamLobbyDataEntry> Metadata;
 
 	bool bDataRequested;
@@ -53,6 +61,7 @@ public:
 	FSteamLobbyInfo()
 	{
 		bDataRequested = false;
+		bFriend = false;
 	}
 
 
@@ -135,6 +144,10 @@ protected:
 
 	CSteamID LocalUserId;
 
+	int32 MemberLimit;
+
+	bool bLocalUserOwner;
+
 public:
 
 
@@ -214,11 +227,19 @@ public:
 	bool IsVoiceChatEnabled() const { return bVoiceChatEnabled; }
 
 
+	/** Opens the steam invite friend overlay */
+	UFUNCTION(BlueprintCallable, Category="Steam Lobby")
+	void InviteFriends();
+
+	/** Sets the lobby type, must be lobby owner */
+	UFUNCTION(BlueprintCallable, Category="Steam Lobby")
+	void SetLobbyType(ESteamLobbyType Type);
+
+
 	void UpdateMemberList();
 
 
-
-	virtual void OnLobbyDataUpdated() {};
+	virtual void OnLobbyDataUpdated();
 	virtual void OnLobbyChatMsg(CSteamID Sender, const TArray<char, TInlineAllocator<256>>& Message) {};
 
 	virtual void OnLightTick() {};
