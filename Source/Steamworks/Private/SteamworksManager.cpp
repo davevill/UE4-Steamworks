@@ -11,6 +11,7 @@
 #include "Voice.h"
 #include "SteamItem.h"
 #include "AudioDevice.h"
+#include "Runtime/Core/Public/Misc/Base64.h"
 
 
 
@@ -58,6 +59,8 @@ public:
 	STEAM_CALLBACK(FSteamworksCallbacks, OnInventoryUpdate, SteamInventoryFullUpdate_t, OnInventoryUpdateCallback);
 	STEAM_CALLBACK(FSteamworksCallbacks, OnInventoryDefinitionUpdate, SteamInventoryDefinitionUpdate_t, OnInventoryDefinitionUpdateCallback);
 
+	// Auth
+	STEAM_CALLBACK(FSteamworksCallbacks, OnGetAuthSessionTicketResponse, GetAuthSessionTicketResponse_t, OnGetAuthSessionTicketResponseCallback);
 
 	// Matchmaking & lobbies
 	STEAM_CALLBACK(FSteamworksCallbacks, OnLobbyDataUpdated, LobbyDataUpdate_t, OnLobbyDataUpdatedCallback);
@@ -81,7 +84,8 @@ public:
 		OnLobbyChatUpdatedCallback(this, &FSteamworksCallbacks::OnLobbyChatUpdated),
 		OnLobbyEnterCallback(this, &FSteamworksCallbacks::OnLobbyEnter),
 		OnLobbyChatMsgCallback(this, &FSteamworksCallbacks::OnLobbyChatMsg),
-		OnP2PSessionRequestCallback(this, &FSteamworksCallbacks::OnP2PSessionRequest)
+		OnP2PSessionRequestCallback(this, &FSteamworksCallbacks::OnP2PSessionRequest),
+		OnGetAuthSessionTicketResponseCallback(this, &FSteamworksCallbacks::OnGetAuthSessionTicketResponse)
 	{
 
 	}
@@ -162,6 +166,11 @@ public:
 
 	}
 };
+
+void FSteamworksCallbacks::OnGetAuthSessionTicketResponse(GetAuthSessionTicketResponse_t* pData)
+{
+	Manager->OnAuthSessionTicketResponse.Broadcast(pData->m_eResult == k_EResultOK, Manager->AuthTicket);
+}
 
 void FSteamworksCallbacks::OnInventoryDefinitionUpdate(SteamInventoryDefinitionUpdate_t* pData)
 {
@@ -477,10 +486,10 @@ void USteamworksManager::Init()
 	{
 		if (GameInstance->IsDedicatedServerInstance())
 		{
-			if (!SteamGameServer_Init(0, 7776, 7777, 7778, EServerMode::eServerModeAuthentication, "0.0.1"))
+			/*if (!SteamGameServer_Init(0, 7776, 7777, 7778, EServerMode::eServerModeAuthentication, "0.0.1"))
 			{
 				UE_LOG(SteamworksLog, Log, TEXT("SteamGameServer_Init() failed"));
-			}
+			}*/
 
 			/*if (SteamGameServer())
 			{
@@ -514,8 +523,16 @@ void USteamworksManager::Init()
 				bInitialized = true;
 			}*/	
 		}
+		else
+		{
+			if (SteamAPI_RestartAppIfNecessary(555160))
+			{
+				FGenericPlatformMisc::RequestExit(true);
+				return;
+			}
+		}
 
-		if (SteamUser() == nullptr)
+		if (SteamUser() == nullptr && GameInstance->IsDedicatedServerInstance() == false)
 		{
 			if (SteamAPI_Init())
 			{
@@ -535,10 +552,25 @@ void USteamworksManager::Init()
 	if (SteamInventory())
 	{
 		//load the definitions for usage in client and server usage
-		SteamInventory()->LoadItemDefinitions();
+		//SteamInventory()->LoadItemDefinitions();
 	}
 
 	bRecordingVoice = false;
+}
+
+void USteamworksManager::GetAuthSessionTicket()
+{
+	if (SteamUser())
+	{
+		uint32 Size;
+		TArray<uint8> Buffer;
+		Buffer.SetNumUninitialized(1024);
+		AuthTicketHandle = SteamUser()->GetAuthSessionTicket(Buffer.GetData(), 1024, &Size);
+
+		AuthTicket = FString::FromHexBlob(Buffer.GetData(), Size);
+
+		UE_LOG(SteamworksLog, Log, TEXT("Steam Auth Ticket = %s"), *AuthTicket);
+	}
 }
 
 void USteamworksManager::GetAllInventoryItems()
@@ -808,14 +840,24 @@ UTexture2D* USteamworksManager::GetAvatarBySteamId(CSteamID SteamId)
 	AvatarTexture = UTexture2D::CreateTransient(STEAMWORKS_AVATAR_SIZE, STEAMWORKS_AVATAR_SIZE, PF_R8G8B8A8);
 
 
+	bool bLoadEmpty = false;
+
 	if (!SteamFriends()->RequestUserInformation(SteamId, false))
 	{
 		//the avatar is imediatly available
 		bool bResult = LoadSteamAvatar(SteamId, AvatarTexture);
 
-		ensure(bResult == true);
+		if (bResult == false)
+		{
+			bLoadEmpty = true;
+		}
 	}
 	else
+	{
+		bLoadEmpty = true;
+	}
+
+	if (bLoadEmpty)
 	{
 		uint8* MipData = (uint8*)AvatarTexture->PlatformData->Mips[0].BulkData.Lock(LOCK_READ_WRITE);
 		FMemory::Memset(MipData, 0, STEAMWORKS_AVATAR_BYTE_SIZE);
@@ -825,7 +867,6 @@ UTexture2D* USteamworksManager::GetAvatarBySteamId(CSteamID SteamId)
 		AvatarTexture->NeverStream = true;
 
 		AvatarTexture->UpdateResource();
-		//steam will call us back once the avatar is ready to be read
 	}
 
 	Avatars.Add(SteamId.ConvertToUint64(), AvatarTexture);

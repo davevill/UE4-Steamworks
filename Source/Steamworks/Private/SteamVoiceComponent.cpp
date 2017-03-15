@@ -20,7 +20,7 @@ USteamVoiceComponent::USteamVoiceComponent()
 {
 	PrimaryComponentTick.bCanEverTick = true;
 	//PrimaryComponentTick.bRunOnAnyThread = true;
-	PrimaryComponentTick.TickInterval = 0.0;//125f;
+	PrimaryComponentTick.TickInterval = 0.025f;//125f;
 	bWantsInitializeComponent = true;
 
 	bReplicates = true;

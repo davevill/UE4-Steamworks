@@ -30,6 +30,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FSteamOnEnterLobbySignature, bool, b
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FSteamOnLeftLobbySignature, ESteamLobbyChatMemberStateChange, StateChange);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FSteamOnLobbyCreatedSignature);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FSteamOnLobbyMembersUpdateSignature);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FSteamOnAuthSessionTicketResponseSignature, bool, bSucceed, FString, HexAuthTicket);
 
 
 #define STEAMWORKS_VOICE_BUFFER_SIZE 51200
@@ -209,6 +210,11 @@ protected:
 	void CreateLobbyInstance(CSteamID LobbyId);
 
 
+
+	FString AuthTicket;
+	HAuthTicket AuthTicketHandle;
+
+
 public:
 
 
@@ -243,9 +249,12 @@ public:
 	UPROPERTY(BlueprintAssignable, Category="Steamworks")
 	FSteamOnLobbyMembersUpdateSignature OnLobbyMembersUpdate;
 
+	UPROPERTY(BlueprintAssignable, Category="Steamworks")
+	FSteamOnAuthSessionTicketResponseSignature OnAuthSessionTicketResponse;
 
 
-
+	UFUNCTION(BlueprintCallable, Category="Steamworks")
+	void GetAuthSessionTicket();
 
 
 
@@ -297,7 +306,6 @@ public:
 	/** Returns the lobby instance, either created or joined */
 	UFUNCTION(BlueprintPure, Category="Steamworks")
 	USteamLobby* GetLobbyInstance() const { return LobbyInstance; }
-
 
 
 };

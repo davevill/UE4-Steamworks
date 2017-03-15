@@ -321,7 +321,6 @@ void USteamLobby::Tick(float DeltaTime)
 	if (UpdateTimer > STEAMLOBBY_UPDATE_INTERVAL)
 	{
 		UpdateTimer = 0.f;
-		OnLobbyDataUpdated();
 		OnLightTick();
 	}
 
