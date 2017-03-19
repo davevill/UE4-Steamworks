@@ -124,7 +124,7 @@ public:
 	void ToggleRadio(bool bEnabled);
 
 	/** Send compressed voice data to the server*/
-	UFUNCTION(Server, Reliable, WithValidation)
+	UFUNCTION(Server, Unreliable, WithValidation)
 	void ServerOnVoice(const FSteamworksVoicePacket& VoicePacket);
 
 	UFUNCTION(Server, Reliable, WithValidation)
