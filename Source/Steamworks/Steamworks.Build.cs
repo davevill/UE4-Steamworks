@@ -73,7 +73,19 @@ public class Steamworks : ModuleRules
 		bool is64bit = (Target.Platform == UnrealTargetPlatform.Win64);
         bool isLibrarySupported = false;
  
-        if ((Target.Platform == UnrealTargetPlatform.Win64) || (Target.Platform == UnrealTargetPlatform.Win32))
+
+        if ((Target.Platform == UnrealTargetPlatform.Linux))
+        {
+            isLibrarySupported = true;
+ 
+            string PlatformString = "linux64";
+			string SteamApiLib = Path.Combine(ThirdPartyPath, "sdk", "redistributable_bin", PlatformString, "libsteam_api.so");
+
+            PublicAdditionalLibraries.Add(SteamApiLib);
+            RuntimeDependencies.Add(new RuntimeDependency(SteamApiLib));
+        }
+        else
+        if ((Target.Platform == UnrealTargetPlatform.Win64))
         {
             isLibrarySupported = true;
 
