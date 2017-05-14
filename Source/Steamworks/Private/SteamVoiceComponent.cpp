@@ -192,6 +192,15 @@ bool USteamVoiceComponent::ServerOnVoice_Validate(const FSteamworksVoicePacket& 
 void USteamVoiceComponent::ServerOnVoice_Implementation(const FSteamworksVoicePacket& VoicePacket)
 {
 	//Send to relevant receipments
+
+	/*for (TObjectIterator<USteamVoiceComponent> Itr; Itr; ++Itr)
+	{
+		if (Itr->GetWorld() == GetWorld() && *Itr != this && Itr->IsPendingKillOrUnreachable() == false)
+		{
+			Itr->MulticastOnVoice(VoicePacket);
+		}
+	}*/
+
 	MulticastOnVoice(VoicePacket);
 }
 
@@ -237,6 +246,10 @@ void USteamVoiceComponent::MulticastOnVoice_Implementation(const FSteamworksVoic
 		}*/
 		return;
 	}
+
+
+	if (ShouldPlayback() == false) return;
+
 
 	static uint8 Buffer[STEAMWORKS_RAW_VOICE_BUFFER_SIZE];
 	uint32 WrittenSize = 0;

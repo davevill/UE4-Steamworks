@@ -64,7 +64,7 @@ enum class ESteamLobbyDistanceFilter : uint8
 
 
 UCLASS()
-class STEAMWORKS_API USteamworksManager : public UObject, public FTickableGameObject
+class STEAMWORKS_API USteamworksManager : public UObject, public FTickableGameObject, public ISteamMatchmakingServerListResponse
 {
 	GENERATED_UCLASS_BODY()
 
@@ -114,6 +114,13 @@ protected:
 
 
 	friend class USteamLobby;
+
+
+	// ISteamMatchmakingServerListResponse
+	virtual void ServerResponded(HServerListRequest hReq, int iServer);
+	virtual void ServerFailedToRespond(HServerListRequest hReq, int iServer);
+	virtual void RefreshComplete(HServerListRequest hReq, EMatchMakingServerResponse response);
+
 
 public:
 
@@ -190,6 +197,9 @@ public:
 
 	/** Decompress voice data into raw PCM with VOICE_SAMPLE_RATE as sample rate */
 	bool DecompressVoice(const uint8* CompressedBuffer, uint32 CompressedSize, uint8* DestBuffer, uint32& WrittenSize);
+
+
+
 
 
 

@@ -147,4 +147,8 @@ public:
 	UPROPERTY(BlueprintAssignable, Category="Steam Voice Component")
 	FSteamOnRadioToggleSignature OnRadioToggle;
 
+
+
+	/** Determines if voice playback should happen, useful to filter voice out based on team */
+	virtual bool ShouldPlayback() const { return true; };
 };

@@ -450,6 +450,8 @@ USteamworksManager::USteamworksManager(const FObjectInitializer& ObjectInitializ
 	LobbyClass = USteamLobby::StaticClass();
 }
 
+#define GAMEDIR "pavlov"
+
 void USteamworksManager::Init()
 {
 	GameInstance = Cast<UGameInstance>(GetOuter());
@@ -486,23 +488,30 @@ void USteamworksManager::Init()
 	{
 		if (GameInstance->IsDedicatedServerInstance())
 		{
-			/*if (!SteamGameServer_Init(0, 7776, 7777, 7778, EServerMode::eServerModeAuthentication, "0.0.1"))
-			{
-				UE_LOG(SteamworksLog, Log, TEXT("SteamGameServer_Init() failed"));
-			}*/
 
-			/*if (SteamGameServer())
+			const int32 Port = FURL::UrlConfig.DefaultPort;
+
+			if (!SteamGameServer_Init(((unsigned long int) 0x00000000), Port + 100, Port, Port + 200, EServerMode::eServerModeAuthentication, "0.1.0.0"))
 			{
+				UE_LOG(SteamworksLog, Warning, TEXT("SteamGameServer_Init() failed"));
+			}
+
+			//ensure(SteamGameServer());
+			if (SteamGameServer())
+			{
+
 				// Set the "game dir".
 				// This is currently required for all games.  However, soon we will be
 				// using the AppID for most purposes, and this string will only be needed
 				// for mods.  it may not be changed after the server has logged on
-				//SteamGameServer()->SetModDir( pchGameDir );
+				SteamGameServer()->SetModDir(GAMEDIR);
 
 				// These fields are currently required, but will go away soon.
 				// See their documentation for more info
-				SteamGameServer()->SetProduct( "Pavlov" );
-				SteamGameServer()->SetGameDescription( "VR Shooter" );
+				SteamGameServer()->SetProduct("Pavlov");
+				SteamGameServer()->SetGameDescription("VR Shooter");
+
+				SteamGameServer()->SetDedicatedServer(true);
 
 				// We don't support specators in our game.
 				// .... but if we did:
@@ -511,25 +520,56 @@ void USteamworksManager::Init()
 
 				// Initiate Anonymous logon.
 				// Coming soon: Logging into authenticated, persistent game server account
-				SteamGameServer()->LogOnAnonymous();
+
+				FString ParseValue;
+
+
+				TCHAR Key[1024];
+
+				FMemory::MemSet(Key, 0);
+
+				FPlatformMisc::GetEnvironmentVariable(*FString::Printf(TEXT("STEAM_GS_KEY_%d"), Port), Key, 1024);
+
+				if (FString(Key) != "")
+				{
+					SteamGameServer()->LogOn(TCHAR_TO_ANSI(Key));
+
+					UE_LOG(SteamworksLog, Log, TEXT("SteamGameServer LogOn with key"));
+				}
+				else
+				{
+					UE_LOG(SteamworksLog, Warning, TEXT("SteamGameServer needs a server key to run"));
+					//check(false);
+
+					SteamGameServer()->LogOnAnonymous();
+
+					UE_LOG(SteamworksLog, Log, TEXT("SteamGameServer LogOnAnonymous"));
+				}
 
 
 				// We want to actively update the master server with our presence so players can
 				// find us via the steam matchmaking/server browser interfaces
 				SteamGameServer()->EnableHeartbeats(true);
 
-
-				UE_LOG(SteamworksLog, Log, TEXT("SteamGameServer LogOnAnonymous"));
 				bInitialized = true;
-			}*/	
+
+			}
 		}
 		else
 		{
-			if (SteamAPI_RestartAppIfNecessary(555160))
+			/*if (SteamAPI_RestartAppIfNecessary(555160))
 			{
 				FGenericPlatformMisc::RequestExit(true);
 				return;
-			}
+			}*/
+
+			MatchMakingKeyValuePair_t pFilters[1];
+			MatchMakingKeyValuePair_t* pFilter = pFilters;
+
+			strncpy(pFilters[0].m_szKey, "gamedir", sizeof(pFilters[0].m_szKey));
+			strncpy(pFilters[0].m_szValue, GAMEDIR, sizeof(pFilters[0].m_szValue));
+
+			//SteamMatchmakingServers()->RequestInternetServerList(SteamUtils()->GetAppID(), &pFilter, 1, this);
 		}
 
 		if (SteamUser() == nullptr && GameInstance->IsDedicatedServerInstance() == false)
@@ -542,20 +582,58 @@ void USteamworksManager::Init()
 			{
 				UE_LOG_ONLINE(Warning, TEXT("SteamAPI_Init() failed, make sure to run this with steam or if in development add the steam_appid.txt in the binary folder"));
 			}
+
 		}
 
 		bInitialized = true;
+
+
 	}
 
 	Callbacks = new FSteamworksCallbacks(this);
 
-	if (SteamInventory())
+	//if (SteamInventory())
 	{
 		//load the definitions for usage in client and server usage
 		//SteamInventory()->LoadItemDefinitions();
 	}
 
 	bRecordingVoice = false;
+
+
+}
+
+void USteamworksManager::ServerResponded(HServerListRequest hReq, int iServer)
+{
+	gameserveritem_t* pServer = SteamMatchmakingServers()->GetServerDetails(hReq, iServer);
+
+	if (pServer)
+	{
+		// Filter out servers that don't match our appid here (might get these in LAN calls since we can't put more filters on it)
+		if (pServer->m_nAppID == SteamUtils()->GetAppID())
+		{
+
+			const char* Name = pServer->GetName();
+
+			UE_LOG_ONLINE(Warning, TEXT("name = "));
+
+			return;
+		}
+	}
+	// ISteamMatchmakingServerListResponse
+
+	return;
+}
+
+void USteamworksManager::ServerFailedToRespond(HServerListRequest hReq, int iServer)
+{
+
+}
+
+void USteamworksManager::RefreshComplete(HServerListRequest hReq, EMatchMakingServerResponse response)
+{
+	int Count = SteamMatchmakingServers()->GetServerCount(hReq);
+
 }
 
 void USteamworksManager::GetAuthSessionTicket()
@@ -608,7 +686,7 @@ void USteamworksManager::Shutdown()
 	if (bInitialized)
 	{
 		SteamAPI_Shutdown();
-		//SteamGameServer_Shutdown();
+		SteamGameServer_Shutdown();
 	}
 
 	if (VoiceCapture.IsValid())
@@ -622,7 +700,15 @@ void USteamworksManager::Tick(float DeltaTime)
 {
 	if (bInitialized)
 	{
-		SteamAPI_RunCallbacks();
+		if (GameInstance && GameInstance->IsDedicatedServerInstance())
+		{
+			SteamGameServer_RunCallbacks();
+		}
+		else
+		{
+			SteamAPI_RunCallbacks();
+		}
+
 
 		if (LobbyInstance)
 		{

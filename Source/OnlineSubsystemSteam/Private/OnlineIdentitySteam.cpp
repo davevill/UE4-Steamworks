@@ -101,6 +101,7 @@ bool FOnlineIdentitySteam::Login(int32 LocalUserNum, const FOnlineAccountCredent
 		{
 			FUniqueNetIdSteam NewUserId;
 
+#if PLATFORM_WINDOWS
 			if (SteamUser() == nullptr) SteamAPI_Init();
 
 			if (SteamUser())
@@ -111,6 +112,7 @@ bool FOnlineIdentitySteam::Login(int32 LocalUserNum, const FOnlineAccountCredent
 
 				NewUserId = FUniqueNetIdSteam(SteamId.ConvertToUint64());
 			}
+#endif
 
 			UserAccountPtr = MakeShareable(new FUserOnlineAccountSteam(NewUserId.ToString()));
 			UserAccountPtr->UserAttributes.Add(TEXT("id"), NewUserId.ToString());
